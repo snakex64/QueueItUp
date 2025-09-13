@@ -1,35 +1,34 @@
 using QueueItUp.Abstractions;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace QueueItUp.Core;
 
 /// <summary>
-/// Abstract base class for tasks, providing subtask management and typed input/output.
+/// Abstract base class for tasks, providing typed input/output and async execution.
 /// Core project contains implementations and helpers that build on the light-weight abstractions project.
 /// </summary>
 public abstract class TaskBase<TInput, TOutput> : ITask<TInput, TOutput>
 {
-    public TInput Input { get; }
-    private readonly List<ITask<object, object>> _subTasks = new();
-    public IReadOnlyList<ITask<object, object>> SubTasks => _subTasks;
+    public string Id { get; protected set; } = System.Guid.NewGuid().ToString();
+    public QueueItUp.Abstractions.TaskStatus Status { get; protected set; } = QueueItUp.Abstractions.TaskStatus.Pending;
+
+    public TInput Input { get; protected set; }
+
+    protected TaskBase()
+    {
+        Input = default!;
+    }
 
     protected TaskBase(TInput input)
     {
         Input = input;
     }
 
-    public void AddSubTask<TSubInput, TSubOutput>(ITask<TSubInput, TSubOutput> subTask)
+    public abstract Task<TOutput> ExecuteAsync(CancellationToken cancellationToken);
+
+    public virtual Task<TInput> LoadInputAsync(CancellationToken cancellationToken)
     {
-        _subTasks.Add((ITask<object, object>)subTask);
+        return Task.FromResult(Input);
     }
 
-    public abstract Task<TOutput> ExecuteAsync(CancellationToken cancellationToken = default);
-
-    public virtual Task AnalyzeSubTaskResultsAsync(CancellationToken cancellationToken = default)
-    {
-        // Default: do nothing. Override to analyze subtask results.
-        return Task.CompletedTask;
-    }
+    public abstract Task<TOutput> LoadOutputAsync(CancellationToken cancellationToken);
 }
