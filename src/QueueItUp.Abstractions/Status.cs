@@ -3,7 +3,7 @@ namespace QueueItUp.Abstractions;
 /// <summary>
 /// Possible lifecycle states of a task.
 /// </summary>
-public enum TaskStatus
+public enum Status
 {
     Pending,
     Running,

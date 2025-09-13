@@ -7,7 +7,7 @@ public interface ITaskInfo<TInput, TOutput>
 {
     string Id { get; }
 
-    TaskStatus Status { get; }
+    Status Status { get; }
 
     Task<TInput> LoadInputAsync(CancellationToken cancellationToken);
 

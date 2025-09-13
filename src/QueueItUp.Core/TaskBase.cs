@@ -9,7 +9,7 @@ namespace QueueItUp.Core;
 public abstract class TaskBase<TInput, TOutput> : ITask<TInput, TOutput>
 {
     public string Id { get; protected set; } = System.Guid.NewGuid().ToString();
-    public QueueItUp.Abstractions.TaskStatus Status { get; protected set; } = QueueItUp.Abstractions.TaskStatus.Pending;
+    public QueueItUp.Abstractions.Status Status { get; protected set; } = QueueItUp.Abstractions.Status.Pending;
 
     public TInput Input { get; protected set; }
 
