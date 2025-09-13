@@ -28,7 +28,7 @@ class Program
         var task = new PrintTask("Hello, QueueItUp!");
         await queue.EnqueueAsync(task, CancellationToken.None);
         var dequeued = await queue.DequeueAsync(CancellationToken.None);
-        if (dequeued is ITask<string, bool> executable)
+        if (dequeued is ITaskImplementation<string, bool> executable)
         {
             await executable.ExecuteAsync(CancellationToken.None);
         }

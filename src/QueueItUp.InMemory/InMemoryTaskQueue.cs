@@ -8,11 +8,11 @@ namespace QueueItUp.InMemory;
 /// </summary>
 public class InMemoryTaskQueue
 {
-    private readonly ConcurrentQueue<ITask<object, object>> _queue = new();
+    private readonly ConcurrentQueue<ITaskImplementation<object, object>> _queue = new();
 
-    public Task EnqueueAsync<TInput, TOutput>(ITask<TInput, TOutput> task, CancellationToken cancellationToken)
+    public Task EnqueueAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> task, CancellationToken cancellationToken)
     {
-        _queue.Enqueue((ITask<object, object>)task);
+        _queue.Enqueue((ITaskImplementation<object, object>)task);
         return Task.CompletedTask;
     }
 

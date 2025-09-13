@@ -5,8 +5,12 @@ namespace QueueItUp.Abstractions;
 /// </summary>
 public enum Status
 {
-    Pending,
+    New,
+    Queued,
+    SentToRunner,
+    WaitingOnDependencies,
     Running,
     Completed,
-    Failed
+    Failed,
+    Canceled
 }
