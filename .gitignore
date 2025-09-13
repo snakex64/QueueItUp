@@ -1,0 +1,73 @@
+# Build output
+bin/
+obj/
+out/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# Visual Studio for Mac
+*.userprefs
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Publish output
+publish/
+*.Publish.xml
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Visual Studio Code
+.vscode/
+
+# Resharper
+_ReSharper*/
+*.DotSettings.user
+
+# EF Core Migrations
+Migrations/**/ModelSnapshot.cs
+
+# Dotnet tools
+project.lock.json
+project.fragment.lock.json
+
+# Rider caches
+.idea/
+*.sln.iml
+
+# User-specific files
+*.user
+*.userosscache
+
+# Test result files
+TestResults/
+*.trx
+
+# Secrets
+secrets.json
+
+# Temporary
+*.tmp
+*.temp
+
+# Lock files (optional)
+# packages.lock.json
+
+# End of .gitignore

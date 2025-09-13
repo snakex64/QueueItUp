@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../QueueItUp.Abstractions/QueueItUp.Abstractions.csproj" />
+    <ProjectReference Include="../QueueItUp.Core/QueueItUp.Core.csproj" />
+    <ProjectReference Include="../QueueItUp.InMemory/QueueItUp.InMemory.csproj" />
+    <ProjectReference Include="../QueueItUp.Db/QueueItUp.Db.csproj" />
+    <ProjectReference Include="../QueueItUp.Api/QueueItUp.Api.csproj" />
+  </ItemGroup>
+</Project>
