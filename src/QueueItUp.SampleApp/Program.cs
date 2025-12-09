@@ -155,18 +155,12 @@ class Program
         var dequeued = await queue.DequeueAsync(CancellationToken.None);
         if (dequeued == null) return false;
         
-        // Create execution context and execute
+        // Create execution context and execute using non-generic interface
         var context = new TaskExecutionContext(dequeued, queue);
         
-        // Use reflection to call ExecuteAsync since we don't know the generic types at compile time
-        var executeMethod = dequeued.GetType().GetMethod("ExecuteAsync");
-        if (executeMethod != null)
+        if (dequeued is ITaskExecutable executable)
         {
-            var task = executeMethod.Invoke(dequeued, new object[] { context, CancellationToken.None }) as Task;
-            if (task != null)
-            {
-                await task;
-            }
+            await executable.ExecuteAsync(context, CancellationToken.None);
         }
         
         return true;

@@ -6,7 +6,7 @@ namespace QueueItUp.Core;
 /// Abstract base class for tasks, providing typed input/output and async execution.
 /// Core project contains implementations and helpers that build on the light-weight abstractions project.
 /// </summary>
-public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskWithSubTasks
+public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskWithSubTasks, ITaskExecutable
 {
     private readonly List<string> _subTaskIds = new();
 
@@ -44,6 +44,14 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     }
 
     public abstract Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Non-generic ExecuteAsync implementation that calls the typed version.
+    /// </summary>
+    async Task ITaskExecutable.ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+    {
+        await ExecuteAsync(context, cancellationToken);
+    }
 
     public virtual Task<TInput> LoadInputAsync(CancellationToken cancellationToken)
     {

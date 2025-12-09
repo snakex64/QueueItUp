@@ -109,9 +109,11 @@ public class SubTaskTests
         var dequeued = await queue.DequeueAsync(CancellationToken.None);
         Assert.NotNull(dequeued);
         var context = new TaskExecutionContext(dequeued, queue);
-        var executeMethod = dequeued.GetType().GetMethod("ExecuteAsync");
-        var task = executeMethod?.Invoke(dequeued, new object[] { context, CancellationToken.None }) as Task;
-        if (task != null) await task;
+        
+        if (dequeued is ITaskExecutable executable)
+        {
+            await executable.ExecuteAsync(context, CancellationToken.None);
+        }
 
         // Assert - Parent should have 2 sub-tasks
         Assert.Equal(2, parentTask.SubTaskIds.Count);
