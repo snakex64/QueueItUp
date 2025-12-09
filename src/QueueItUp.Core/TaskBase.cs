@@ -6,10 +6,14 @@ namespace QueueItUp.Core;
 /// Abstract base class for tasks, providing typed input/output and async execution.
 /// Core project contains implementations and helpers that build on the light-weight abstractions project.
 /// </summary>
-public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>
+public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskWithSubTasks
 {
+    private readonly List<string> _subTaskIds = new();
+
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
     public Status Status { get; protected set; } = Status.New;
+    public string? ParentTaskId { get; private set; }
+    public IReadOnlyList<string> SubTaskIds => _subTaskIds.AsReadOnly();
 
     public TInput Input { get; protected set; }
 
@@ -23,7 +27,23 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
         Input = input;
     }
 
-    public abstract Task<TOutput> ExecuteAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Sets the parent task ID. This is typically called by the queue when enqueueing a sub-task.
+    /// </summary>
+    public void SetParentTaskId(string parentTaskId)
+    {
+        ParentTaskId = parentTaskId;
+    }
+
+    /// <summary>
+    /// Registers a sub-task ID. This is typically called by the execution context when a sub-task is enqueued.
+    /// </summary>
+    public void AddSubTaskId(string subTaskId)
+    {
+        _subTaskIds.Add(subTaskId);
+    }
+
+    public abstract Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);
 
     public virtual Task<TInput> LoadInputAsync(CancellationToken cancellationToken)
     {

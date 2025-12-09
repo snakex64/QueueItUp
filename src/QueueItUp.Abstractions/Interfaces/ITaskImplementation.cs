@@ -5,5 +5,8 @@ namespace QueueItUp.Abstractions;
 /// </summary>
 public interface ITaskImplementation<TInput, TOutput> : ITaskInfo<TInput, TOutput>
 {
-    Task<TOutput> ExecuteAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Executes the task. The context provides access to enqueue sub-tasks.
+    /// </summary>
+    Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);
 }

@@ -10,7 +10,7 @@ public class InMemoryTaskQueueTests
     {
         public SimpleTask(string input) : base(input) { }
 
-        public override Task<bool> ExecuteAsync(CancellationToken cancellationToken)
+        public override Task<bool> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
         {
             return Task.FromResult(true);
         }
@@ -133,7 +133,7 @@ public class InMemoryTaskQueueTests
     {
         public NumberTask(int input) : base(input) { }
 
-        public override Task<int> ExecuteAsync(CancellationToken cancellationToken)
+        public override Task<int> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
         {
             return Task.FromResult(Input * 2);
         }

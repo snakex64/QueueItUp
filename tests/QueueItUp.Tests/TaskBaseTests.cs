@@ -14,7 +14,7 @@ public class TaskBaseTests
 
         public int ExecutionCount => _executionCount;
 
-        public override Task<int> ExecuteAsync(CancellationToken cancellationToken)
+        public override Task<int> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
         {
             _executionCount++;
             _output = Input.Length;
@@ -38,6 +38,8 @@ public class TaskBaseTests
         Assert.NotNull(task.Id);
         Assert.NotEmpty(task.Id);
         Assert.Equal(Status.New, task.Status);
+        Assert.Null(task.ParentTaskId);
+        Assert.Empty(task.SubTaskIds);
     }
 
     [Fact]
@@ -56,9 +58,11 @@ public class TaskBaseTests
     {
         // Arrange
         var task = new TestTask("hello");
+        var queue = new InMemory.InMemoryTaskQueue();
+        var context = new TaskExecutionContext(task, queue);
 
         // Act
-        var result = await task.ExecuteAsync(CancellationToken.None);
+        var result = await task.ExecuteAsync(context, CancellationToken.None);
 
         // Assert
         Assert.Equal(5, result);
@@ -84,7 +88,9 @@ public class TaskBaseTests
     {
         // Arrange
         var task = new TestTask("test");
-        await task.ExecuteAsync(CancellationToken.None);
+        var queue = new InMemory.InMemoryTaskQueue();
+        var context = new TaskExecutionContext(task, queue);
+        await task.ExecuteAsync(context, CancellationToken.None);
 
         // Act
         var output = await task.LoadOutputAsync(CancellationToken.None);
@@ -121,5 +127,37 @@ public class TaskBaseTests
 
         // Assert
         Assert.IsAssignableFrom<ITask>(task);
+    }
+
+    [Fact]
+    public void TaskBase_SetParentTaskId_ShouldSetParent()
+    {
+        // Arrange
+        var task = new TestTask("test");
+        var parentId = "parent-123";
+
+        // Act
+        task.SetParentTaskId(parentId);
+
+        // Assert
+        Assert.Equal(parentId, task.ParentTaskId);
+    }
+
+    [Fact]
+    public void TaskBase_AddSubTaskId_ShouldAddToCollection()
+    {
+        // Arrange
+        var task = new TestTask("test");
+        var subTaskId1 = "sub-1";
+        var subTaskId2 = "sub-2";
+
+        // Act
+        task.AddSubTaskId(subTaskId1);
+        task.AddSubTaskId(subTaskId2);
+
+        // Assert
+        Assert.Equal(2, task.SubTaskIds.Count);
+        Assert.Contains(subTaskId1, task.SubTaskIds);
+        Assert.Contains(subTaskId2, task.SubTaskIds);
     }
 }
