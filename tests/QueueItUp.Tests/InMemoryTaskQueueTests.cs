@@ -15,10 +15,6 @@ public class InMemoryTaskQueueTests
             return Task.FromResult(true);
         }
 
-        public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     [Fact]
@@ -138,9 +134,5 @@ public class InMemoryTaskQueueTests
             return Task.FromResult(Input * 2);
         }
 
-        public override Task<int> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(Input * 2);
-        }
     }
 }

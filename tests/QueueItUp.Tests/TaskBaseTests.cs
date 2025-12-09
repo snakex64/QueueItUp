@@ -21,10 +21,6 @@ public class TaskBaseTests
             return Task.FromResult(_output.Value);
         }
 
-        public override Task<int> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(_output ?? 0);
-        }
     }
 
     [Fact]
@@ -90,7 +86,12 @@ public class TaskBaseTests
         var task = new TestTask("test");
         var queue = new InMemory.InMemoryTaskQueue();
         var context = new TaskExecutionContext(task, queue);
-        await task.ExecuteAsync(context, CancellationToken.None);
+        
+        // Execute through ITaskExecutable to trigger SetOutput
+        if (task is ITaskExecutable executable)
+        {
+            await executable.ExecuteAsync(context, CancellationToken.None);
+        }
 
         // Act
         var output = await task.LoadOutputAsync(CancellationToken.None);

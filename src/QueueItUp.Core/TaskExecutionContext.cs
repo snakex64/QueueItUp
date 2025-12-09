@@ -22,16 +22,10 @@ public class TaskExecutionContext : ITaskExecutionContext
     public async Task<string> EnqueueSubTaskAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> subTask, CancellationToken cancellationToken = default)
     {
         // Set the parent-child relationship on the sub-task
-        if (subTask is ITaskWithSubTasks subTaskWithSubTasks)
-        {
-            subTaskWithSubTasks.SetParentTaskId(CurrentTaskId);
-        }
+        subTask.SetParentTaskId(CurrentTaskId);
         
         // Register the sub-task with the parent
-        if (_currentTask is ITaskWithSubTasks parentTaskWithSubTasks)
-        {
-            parentTaskWithSubTasks.AddSubTaskId(subTask.Id);
-        }
+        _currentTask.AddSubTaskId(subTask.Id);
         
         // Enqueue the sub-task
         await Queue.EnqueueAsync(subTask, cancellationToken);
@@ -41,18 +35,9 @@ public class TaskExecutionContext : ITaskExecutionContext
 
     public async Task<string> EnqueueNextTaskAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> nextTask, CancellationToken cancellationToken = default)
     {
-        // The next task depends on the current task and all its sub-tasks
-        if (nextTask is ITaskWithSubTasks nextTaskWithSubTasks)
-        {
-            // Add dependency on current task
-            nextTaskWithSubTasks.AddDependencyTaskId(CurrentTaskId);
-            
-            // Add dependencies on all sub-tasks of current task
-            foreach (var subTaskId in _currentTask.SubTaskIds)
-            {
-                nextTaskWithSubTasks.AddDependencyTaskId(subTaskId);
-            }
-        }
+        // The next task depends only on the current task, NOT on sub-tasks
+        // Sub-tasks can execute in parallel/any order, so next task only waits for the parent
+        nextTask.AddDependencyTaskId(CurrentTaskId);
         
         // Enqueue the next task
         await Queue.EnqueueAsync(nextTask, cancellationToken);

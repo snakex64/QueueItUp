@@ -22,4 +22,24 @@ public interface ITask
     /// Gets the IDs of tasks that must complete before this task can be executed.
     /// </summary>
     IReadOnlyList<string> DependencyTaskIds { get; }
+    
+    /// <summary>
+    /// Sets the parent task ID.
+    /// </summary>
+    void SetParentTaskId(string parentTaskId);
+    
+    /// <summary>
+    /// Adds a sub-task ID to this task's collection.
+    /// </summary>
+    void AddSubTaskId(string subTaskId);
+    
+    /// <summary>
+    /// Adds a dependency task ID that must complete before this task can execute.
+    /// </summary>
+    void AddDependencyTaskId(string dependencyTaskId);
+    
+    /// <summary>
+    /// Updates the task status.
+    /// </summary>
+    void SetStatus(Status status);
 }

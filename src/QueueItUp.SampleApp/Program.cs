@@ -13,11 +13,6 @@ public class PrintTask : TaskBase<string, bool>
         return Task.FromResult(true);
     }
 
-    public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        // For demonstration purposes, this task does not store an output beyond execution.
-        return Task.FromResult(true);
-    }
 }
 
 // Example task that demonstrates sub-task creation
@@ -52,10 +47,6 @@ public class SearchWebTask : TaskBase<string, List<string>>
         return _results;
     }
 
-    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_results);
-    }
 }
 
 public class GoogleSearchTask : TaskBase<string, List<string>>
@@ -72,10 +63,6 @@ public class GoogleSearchTask : TaskBase<string, List<string>>
         return Task.FromResult(_searchResults);
     }
 
-    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_searchResults);
-    }
 }
 
 public class FilterPagesTask : TaskBase<List<string>, List<string>>
@@ -92,10 +79,6 @@ public class FilterPagesTask : TaskBase<List<string>, List<string>>
         return Task.FromResult(_filteredPages);
     }
 
-    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_filteredPages);
-    }
 }
 
 public class DownloadPagesTask : TaskBase<List<string>, int>
@@ -112,10 +95,6 @@ public class DownloadPagesTask : TaskBase<List<string>, int>
         return Task.FromResult(_downloadedCount);
     }
 
-    public override Task<int> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_downloadedCount);
-    }
 }
 
 // Example tasks demonstrating dependency chains
@@ -148,10 +127,6 @@ public class GeneratePlanTask : TaskBase<string, List<string>>
         return _plan;
     }
 
-    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_plan);
-    }
 }
 
 public class ExecutePlanTask : TaskBase<List<string>, List<string>>
@@ -182,10 +157,6 @@ public class ExecutePlanTask : TaskBase<List<string>, List<string>>
         return _results;
     }
 
-    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(_results);
-    }
 }
 
 public class PlanStepTask : TaskBase<string, bool>
@@ -198,10 +169,6 @@ public class PlanStepTask : TaskBase<string, bool>
         return Task.FromResult(true);
     }
 
-    public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(true);
-    }
 }
 
 public class ReviewTask : TaskBase<int, bool>
@@ -215,10 +182,6 @@ public class ReviewTask : TaskBase<int, bool>
         return Task.FromResult(true);
     }
 
-    public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(true);
-    }
 }
 
 class Program

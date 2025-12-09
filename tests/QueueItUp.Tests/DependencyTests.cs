@@ -15,10 +15,6 @@ public class DependencyTests
             return Task.FromResult(true);
         }
 
-        public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     private class TaskWithNextTask : TaskBase<string, bool>
@@ -38,10 +34,6 @@ public class DependencyTests
             return true;
         }
 
-        public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     private class TaskWithSubTasksAndNextTask : TaskBase<string, bool>
@@ -60,10 +52,6 @@ public class DependencyTests
             return true;
         }
 
-        public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     [Fact]
@@ -109,7 +97,7 @@ public class DependencyTests
     }
 
     [Fact]
-    public async Task EnqueueNextTaskAsync_ShouldSetDependenciesOnAllSubTasks()
+    public async Task EnqueueNextTaskAsync_ShouldSetDependencyOnCurrentTaskOnly()
     {
         // Arrange
         ITaskQueue queue = new InMemoryTaskQueue();
@@ -125,11 +113,11 @@ public class DependencyTests
         // Act
         await context.EnqueueNextTaskAsync(nextTask, CancellationToken.None);
 
-        // Assert
-        Assert.Equal(3, nextTask.DependencyTaskIds.Count); // current + 2 sub-tasks
+        // Assert - Next task should only depend on current task, NOT sub-tasks
+        Assert.Single(nextTask.DependencyTaskIds);
         Assert.Contains(currentTask.Id, nextTask.DependencyTaskIds);
-        Assert.Contains("sub-1", nextTask.DependencyTaskIds);
-        Assert.Contains("sub-2", nextTask.DependencyTaskIds);
+        Assert.DoesNotContain("sub-1", nextTask.DependencyTaskIds);
+        Assert.DoesNotContain("sub-2", nextTask.DependencyTaskIds);
     }
 
     [Fact]

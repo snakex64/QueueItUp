@@ -6,10 +6,11 @@ namespace QueueItUp.Core;
 /// Abstract base class for tasks, providing typed input/output and async execution.
 /// Core project contains implementations and helpers that build on the light-weight abstractions project.
 /// </summary>
-public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskWithSubTasks, ITaskExecutable
+public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskExecutable
 {
     private readonly List<string> _subTaskIds = new();
     private readonly List<string> _dependencyTaskIds = new();
+    private TOutput? _output;
 
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
     public Status Status { get; protected set; } = Status.New;
@@ -18,6 +19,11 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     public IReadOnlyList<string> DependencyTaskIds => _dependencyTaskIds.AsReadOnly();
 
     public TInput Input { get; protected set; }
+    
+    /// <summary>
+    /// Gets the output of the task after execution. May be null if task hasn't executed yet.
+    /// </summary>
+    public TOutput? Output => _output;
 
     protected TaskBase()
     {
@@ -60,6 +66,14 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     {
         Status = status;
     }
+    
+    /// <summary>
+    /// Sets the output value after task execution.
+    /// </summary>
+    protected void SetOutput(TOutput output)
+    {
+        _output = output;
+    }
 
     public abstract Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);
 
@@ -68,7 +82,8 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     /// </summary>
     async Task ITaskExecutable.ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
     {
-        await ExecuteAsync(context, cancellationToken);
+        var result = await ExecuteAsync(context, cancellationToken);
+        SetOutput(result);
     }
 
     public virtual Task<TInput> LoadInputAsync(CancellationToken cancellationToken)
@@ -76,5 +91,12 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
         return Task.FromResult(Input);
     }
 
-    public abstract Task<TOutput> LoadOutputAsync(CancellationToken cancellationToken);
+    public virtual Task<TOutput> LoadOutputAsync(CancellationToken cancellationToken)
+    {
+        if (_output == null)
+        {
+            throw new InvalidOperationException($"Task {Id} has not been executed yet or did not produce an output.");
+        }
+        return Task.FromResult(_output);
+    }
 }

@@ -14,4 +14,14 @@ public interface ITaskQueue
     /// Dequeues the next available task.
     /// </summary>
     Task<ITask?> DequeueAsync(CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Gets information about a specific task by ID, including completed tasks.
+    /// </summary>
+    ITask? GetTaskInfo(string taskId);
+    
+    /// <summary>
+    /// Marks a task as completed. This allows dependent tasks to be dequeued.
+    /// </summary>
+    void MarkTaskCompleted(string taskId, bool success = true);
 }

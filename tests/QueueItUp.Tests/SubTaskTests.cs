@@ -25,10 +25,6 @@ public class SubTaskTests
             return _results;
         }
 
-        public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(_results);
-        }
     }
 
     private class ChildTask : TaskBase<string, bool>
@@ -40,10 +36,6 @@ public class SubTaskTests
             return Task.FromResult(true);
         }
 
-        public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(true);
-        }
     }
 
     [Fact]
