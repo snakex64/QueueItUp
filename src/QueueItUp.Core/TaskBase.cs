@@ -11,6 +11,7 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     private readonly List<string> _subTaskIds = new();
     private readonly List<string> _dependencyTaskIds = new();
     private TOutput? _output;
+    private bool _hasExecuted = false;
 
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
     public Status Status { get; protected set; } = Status.New;
@@ -73,6 +74,7 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     protected void SetOutput(TOutput output)
     {
         _output = output;
+        _hasExecuted = true;
     }
 
     public abstract Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);
@@ -93,10 +95,10 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
 
     public virtual Task<TOutput> LoadOutputAsync(CancellationToken cancellationToken)
     {
-        if (_output == null)
+        if (!_hasExecuted)
         {
-            throw new InvalidOperationException($"Task {Id} has not been executed yet or did not produce an output.");
+            throw new InvalidOperationException($"Task {Id} has not been executed yet.");
         }
-        return Task.FromResult(_output);
+        return Task.FromResult(_output!);
     }
 }
