@@ -118,6 +118,109 @@ public class DownloadPagesTask : TaskBase<List<string>, int>
     }
 }
 
+// Example tasks demonstrating dependency chains
+public class GeneratePlanTask : TaskBase<string, List<string>>
+{
+    private List<string> _plan = new();
+
+    public GeneratePlanTask(string problem) : base(problem) { }
+
+    public override async Task<List<string>> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"[GeneratePlanTask] Generating plan for: {Input}");
+        
+        // Generate a plan
+        _plan = new List<string>
+        {
+            "Analyze problem",
+            "Fix problem",
+            "Write new tests",
+            "Run tests and fix issues"
+        };
+        
+        Console.WriteLine($"[GeneratePlanTask] Generated plan with {_plan.Count} steps");
+        
+        // Enqueue ExecutePlanTask as next task (will wait for this task to complete)
+        var executePlanTask = new ExecutePlanTask(_plan);
+        await context.EnqueueNextTaskAsync(executePlanTask, cancellationToken);
+        Console.WriteLine($"[GeneratePlanTask] Enqueued ExecutePlanTask as next task (ID: {executePlanTask.Id})");
+        
+        return _plan;
+    }
+
+    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_plan);
+    }
+}
+
+public class ExecutePlanTask : TaskBase<List<string>, List<string>>
+{
+    private List<string> _results = new();
+
+    public ExecutePlanTask(List<string> planSteps) : base(planSteps) { }
+
+    public override async Task<List<string>> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"[ExecutePlanTask] Executing plan with {Input.Count} steps");
+        
+        // Create a sub-task for each step of the plan
+        foreach (var step in Input)
+        {
+            var stepTask = new PlanStepTask(step);
+            await context.EnqueueSubTaskAsync(stepTask, cancellationToken);
+            Console.WriteLine($"  [ExecutePlanTask] Enqueued sub-task: {step} (ID: {stepTask.Id})");
+        }
+        
+        // Enqueue ReviewTask as next task (will wait for this task AND all sub-tasks to complete)
+        var reviewTask = new ReviewTask(Input.Count);
+        await context.EnqueueNextTaskAsync(reviewTask, cancellationToken);
+        Console.WriteLine($"[ExecutePlanTask] Enqueued ReviewTask as next task (ID: {reviewTask.Id})");
+        Console.WriteLine($"  [ExecutePlanTask] ReviewTask has {reviewTask.DependencyTaskIds.Count} dependencies");
+        
+        _results.Add($"Created {SubTaskIds.Count} sub-tasks");
+        return _results;
+    }
+
+    public override Task<List<string>> LoadOutputAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_results);
+    }
+}
+
+public class PlanStepTask : TaskBase<string, bool>
+{
+    public PlanStepTask(string step) : base(step) { }
+
+    public override Task<bool> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"    [PlanStepTask] Executing: {Input}");
+        return Task.FromResult(true);
+    }
+
+    public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(true);
+    }
+}
+
+public class ReviewTask : TaskBase<int, bool>
+{
+    public ReviewTask(int numberOfSteps) : base(numberOfSteps) { }
+
+    public override Task<bool> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"[ReviewTask] Reviewing results of {Input} completed steps");
+        Console.WriteLine($"[ReviewTask] All dependencies met! Review complete.");
+        return Task.FromResult(true);
+    }
+
+    public override Task<bool> LoadOutputAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(true);
+    }
+}
+
 class Program
 {
     static async Task Main()
@@ -148,6 +251,32 @@ class Program
         
         Console.WriteLine($"\n[Main] All tasks completed!");
         Console.WriteLine($"[Main] SearchWebTask had {searchTask.SubTaskIds.Count} sub-tasks");
+        
+        Console.WriteLine("\n---\n");
+        
+        // Example 3: Task dependency chain (GeneratePlan -> ExecutePlan -> Review)
+        Console.WriteLine("Example 3: Task dependency chain");
+        var queue2 = new InMemoryTaskQueue();
+        
+        // Enqueue GeneratePlanTask
+        var generateTask = new GeneratePlanTask("Fix authentication bug");
+        await queue2.EnqueueAsync(generateTask, CancellationToken.None);
+        
+        // Execute GeneratePlanTask - it will create ExecutePlanTask as next task
+        await ExecuteNextTaskWithCompletion(queue2);
+        
+        // Execute all sub-tasks created by ExecutePlanTask
+        Console.WriteLine("\n[Main] Executing sub-tasks...");
+        int taskCount = 0;
+        while (taskCount < 10) // Safety limit
+        {
+            var executed = await ExecuteNextTaskWithCompletion(queue2);
+            if (!executed) break;
+            taskCount++;
+            await Task.Delay(150);
+        }
+        
+        Console.WriteLine($"\n[Main] Dependency chain example completed!");
     }
 
     static async Task<bool> ExecuteNextTask(ITaskQueue queue)
@@ -161,6 +290,31 @@ class Program
         if (dequeued is ITaskExecutable executable)
         {
             await executable.ExecuteAsync(context, CancellationToken.None);
+        }
+        
+        return true;
+    }
+
+    static async Task<bool> ExecuteNextTaskWithCompletion(ITaskQueue queue)
+    {
+        var dequeued = await queue.DequeueAsync(CancellationToken.None);
+        if (dequeued == null) return false;
+        
+        Console.WriteLine($"[Main] Dequeued task: {dequeued.GetType().Name} (ID: {dequeued.Id}, Status: {dequeued.Status}, Dependencies: {dequeued.DependencyTaskIds.Count})");
+        
+        // Create execution context and execute using non-generic interface
+        var context = new TaskExecutionContext(dequeued, queue);
+        
+        if (dequeued is ITaskExecutable executable)
+        {
+            await executable.ExecuteAsync(context, CancellationToken.None);
+        }
+        
+        // Mark task as completed
+        if (queue is InMemoryTaskQueue inMemoryQueue)
+        {
+            inMemoryQueue.MarkTaskCompleted(dequeued.Id, success: true);
+            Console.WriteLine($"[Main] Marked task {dequeued.Id} as completed");
         }
         
         return true;

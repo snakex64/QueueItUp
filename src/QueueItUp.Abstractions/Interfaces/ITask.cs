@@ -17,4 +17,9 @@ public interface ITask
     /// Gets the IDs of all sub-tasks that have been created by this task.
     /// </summary>
     IReadOnlyList<string> SubTaskIds { get; }
+    
+    /// <summary>
+    /// Gets the IDs of tasks that must complete before this task can be executed.
+    /// </summary>
+    IReadOnlyList<string> DependencyTaskIds { get; }
 }

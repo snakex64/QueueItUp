@@ -9,11 +9,13 @@ namespace QueueItUp.Core;
 public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskWithSubTasks, ITaskExecutable
 {
     private readonly List<string> _subTaskIds = new();
+    private readonly List<string> _dependencyTaskIds = new();
 
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
     public Status Status { get; protected set; } = Status.New;
     public string? ParentTaskId { get; private set; }
     public IReadOnlyList<string> SubTaskIds => _subTaskIds.AsReadOnly();
+    public IReadOnlyList<string> DependencyTaskIds => _dependencyTaskIds.AsReadOnly();
 
     public TInput Input { get; protected set; }
 
@@ -41,6 +43,22 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     public void AddSubTaskId(string subTaskId)
     {
         _subTaskIds.Add(subTaskId);
+    }
+
+    /// <summary>
+    /// Adds a dependency task ID that must complete before this task can execute.
+    /// </summary>
+    public void AddDependencyTaskId(string dependencyTaskId)
+    {
+        _dependencyTaskIds.Add(dependencyTaskId);
+    }
+
+    /// <summary>
+    /// Updates the task status.
+    /// </summary>
+    public void SetStatus(Status status)
+    {
+        Status = status;
     }
 
     public abstract Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);

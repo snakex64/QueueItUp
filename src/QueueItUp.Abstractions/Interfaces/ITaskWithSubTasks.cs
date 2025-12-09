@@ -15,4 +15,14 @@ public interface ITaskWithSubTasks : ITask
     /// Adds a sub-task ID to this task's collection.
     /// </summary>
     void AddSubTaskId(string subTaskId);
+    
+    /// <summary>
+    /// Adds a dependency task ID that must complete before this task can execute.
+    /// </summary>
+    void AddDependencyTaskId(string dependencyTaskId);
+    
+    /// <summary>
+    /// Updates the task status.
+    /// </summary>
+    void SetStatus(Status status);
 }

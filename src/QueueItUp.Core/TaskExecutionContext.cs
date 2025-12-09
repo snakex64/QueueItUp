@@ -38,4 +38,25 @@ public class TaskExecutionContext : ITaskExecutionContext
         
         return subTask.Id;
     }
+
+    public async Task<string> EnqueueNextTaskAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> nextTask, CancellationToken cancellationToken = default)
+    {
+        // The next task depends on the current task and all its sub-tasks
+        if (nextTask is ITaskWithSubTasks nextTaskWithSubTasks)
+        {
+            // Add dependency on current task
+            nextTaskWithSubTasks.AddDependencyTaskId(CurrentTaskId);
+            
+            // Add dependencies on all sub-tasks of current task
+            foreach (var subTaskId in _currentTask.SubTaskIds)
+            {
+                nextTaskWithSubTasks.AddDependencyTaskId(subTaskId);
+            }
+        }
+        
+        // Enqueue the next task
+        await Queue.EnqueueAsync(nextTask, cancellationToken);
+        
+        return nextTask.Id;
+    }
 }
