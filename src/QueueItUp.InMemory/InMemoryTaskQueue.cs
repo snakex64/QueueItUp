@@ -6,19 +6,19 @@ namespace QueueItUp.InMemory;
 /// <summary>
 /// In-memory implementation of ITaskQueue for fast, ephemeral task management.
 /// </summary>
-public class InMemoryTaskQueue
+public class InMemoryTaskQueue : ITaskQueue
 {
-    private readonly ConcurrentQueue<ITaskImplementation<object, object>> _queue = new();
+    private readonly ConcurrentQueue<ITask> _queue = new();
 
-    public Task EnqueueAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> task, CancellationToken cancellationToken)
+    public Task EnqueueAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> task, CancellationToken cancellationToken = default)
     {
-        _queue.Enqueue((ITaskImplementation<object, object>)task);
+        _queue.Enqueue(task);
         return Task.CompletedTask;
     }
 
-    public Task<ITaskInfo<object, object>?> DequeueAsync(CancellationToken cancellationToken)
+    public Task<ITask?> DequeueAsync(CancellationToken cancellationToken = default)
     {
         _queue.TryDequeue(out var task);
-        return Task.FromResult(task as ITaskInfo<object, object>);
+        return Task.FromResult(task);
     }
 }

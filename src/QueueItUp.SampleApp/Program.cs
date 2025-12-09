@@ -24,7 +24,7 @@ class Program
 {
     static async Task Main()
     {
-        var queue = new InMemoryTaskQueue();
+        ITaskQueue queue = new InMemoryTaskQueue();
         var task = new PrintTask("Hello, QueueItUp!");
         await queue.EnqueueAsync(task, CancellationToken.None);
         var dequeued = await queue.DequeueAsync(CancellationToken.None);
