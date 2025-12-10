@@ -6,29 +6,102 @@ namespace QueueItUp.Core;
 /// Abstract base class for tasks, providing typed input/output and async execution.
 /// Core project contains implementations and helpers that build on the light-weight abstractions project.
 /// </summary>
-public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>
+public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TOutput>, ITaskExecutable
 {
+    private readonly List<string> _subTaskIds = new();
+    private readonly List<string> _dependencyTaskIds = new();
+    private TOutput? _output;
+    private bool _hasExecuted = false;
+
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
+    public string Name { get; protected set; }
     public Status Status { get; protected set; } = Status.New;
+    public string? ParentTaskId { get; private set; }
+    public IReadOnlyList<string> SubTaskIds => _subTaskIds.AsReadOnly();
+    public IReadOnlyList<string> DependencyTaskIds => _dependencyTaskIds.AsReadOnly();
 
     public TInput Input { get; protected set; }
+    
+    /// <summary>
+    /// Gets the output of the task after execution. May be null if task hasn't executed yet.
+    /// </summary>
+    public TOutput? Output => _output;
 
     protected TaskBase()
     {
         Input = default!;
+        Name = GetType().Name;
     }
 
     protected TaskBase(TInput input)
     {
         Input = input;
+        Name = GetType().Name;
     }
 
-    public abstract Task<TOutput> ExecuteAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Sets the parent task ID. This is typically called by the queue when enqueueing a sub-task.
+    /// </summary>
+    public void SetParentTaskId(string parentTaskId)
+    {
+        ParentTaskId = parentTaskId;
+    }
+
+    /// <summary>
+    /// Registers a sub-task ID. This is typically called by the execution context when a sub-task is enqueued.
+    /// </summary>
+    public void AddSubTaskId(string subTaskId)
+    {
+        _subTaskIds.Add(subTaskId);
+    }
+
+    /// <summary>
+    /// Adds a dependency task ID that must complete before this task can execute.
+    /// </summary>
+    public void AddDependencyTaskId(string dependencyTaskId)
+    {
+        _dependencyTaskIds.Add(dependencyTaskId);
+    }
+
+    /// <summary>
+    /// Updates the task status.
+    /// </summary>
+    public void SetStatus(Status status)
+    {
+        Status = status;
+    }
+    
+    /// <summary>
+    /// Sets the output value after task execution.
+    /// </summary>
+    protected void SetOutput(TOutput output)
+    {
+        _output = output;
+        _hasExecuted = true;
+    }
+
+    public abstract Task<TOutput> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Non-generic ExecuteAsync implementation that calls the typed version.
+    /// </summary>
+    async Task ITaskExecutable.ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+    {
+        var result = await ExecuteAsync(context, cancellationToken);
+        SetOutput(result);
+    }
 
     public virtual Task<TInput> LoadInputAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(Input);
     }
 
-    public abstract Task<TOutput> LoadOutputAsync(CancellationToken cancellationToken);
+    public virtual Task<TOutput> LoadOutputAsync(CancellationToken cancellationToken)
+    {
+        if (!_hasExecuted)
+        {
+            throw new InvalidOperationException($"Task {Id} has not been executed yet.");
+        }
+        return Task.FromResult(_output!);
+    }
 }

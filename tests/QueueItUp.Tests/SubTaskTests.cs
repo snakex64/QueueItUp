@@ -1,0 +1,165 @@
+using QueueItUp.Abstractions;
+using QueueItUp.Core;
+using QueueItUp.InMemory;
+
+namespace QueueItUp.Tests;
+
+public class SubTaskTests
+{
+    private class ParentTask : TaskBase<string, List<string>>
+    {
+        private List<string> _results = new();
+
+        public ParentTask(string input) : base(input) { }
+
+        public override async Task<List<string>> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+        {
+            // Create two sub-tasks
+            var subTask1 = new ChildTask($"{Input}-sub1");
+            var subTask2 = new ChildTask($"{Input}-sub2");
+
+            await context.Queue.EnqueueSubTaskAsync(subTask1, this.Id, cancellationToken);
+            await context.Queue.EnqueueSubTaskAsync(subTask2, this.Id, cancellationToken);
+
+            _results.Add($"Created {SubTaskIds.Count} sub-tasks");
+            return _results;
+        }
+
+    }
+
+    private class ChildTask : TaskBase<string, bool>
+    {
+        public ChildTask(string input) : base(input) { }
+
+        public override Task<bool> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(true);
+        }
+
+    }
+
+    [Fact]
+    public async Task ExecutionContext_EnqueueSubTask_ShouldSetParentTaskId()
+    {
+        // Arrange
+        ITaskQueue queue = new InMemoryTaskQueue();
+        var parentTask = new ParentTask("parent");
+        var context = new TaskExecutionContext(queue);
+
+        // Act
+        var childTask = new ChildTask("child");
+        await context.Queue.EnqueueSubTaskAsync(childTask, parentTask.Id, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(parentTask.Id, childTask.ParentTaskId);
+    }
+
+    [Fact]
+    public async Task ExecutionContext_EnqueueSubTask_ShouldAddToParentSubTaskIds()
+    {
+        // Arrange
+        ITaskQueue queue = new InMemoryTaskQueue();
+        var parentTask = new ParentTask("parent");
+        await queue.EnqueueAsync(parentTask, CancellationToken.None); // Enqueue parent first
+        var context = new TaskExecutionContext(queue);
+
+        // Act
+        var childTask = new ChildTask("child");
+        await context.Queue.EnqueueSubTaskAsync(childTask, parentTask.Id, CancellationToken.None);
+
+        // Assert
+        Assert.Single(parentTask.SubTaskIds);
+        Assert.Contains(childTask.Id, parentTask.SubTaskIds);
+    }
+
+    [Fact]
+    public async Task ExecutionContext_EnqueueSubTask_ShouldEnqueueToQueue()
+    {
+        // Arrange
+        ITaskQueue queue = new InMemoryTaskQueue();
+        var parentTask = new ParentTask("parent");
+        var context = new TaskExecutionContext(queue);
+
+        // Act
+        var childTask = new ChildTask("child");
+        await context.Queue.EnqueueSubTaskAsync(childTask, parentTask.Id, CancellationToken.None);
+        var dequeued = await queue.DequeueAsync(CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(dequeued);
+        Assert.Equal(childTask.Id, dequeued.Id);
+    }
+
+    [Fact]
+    public async Task ParentTask_CanCreateMultipleSubTasks()
+    {
+        // Arrange
+        ITaskQueue queue = new InMemoryTaskQueue();
+        var parentTask = new ParentTask("parent");
+        await queue.EnqueueAsync(parentTask, CancellationToken.None);
+
+        // Act - Execute parent task
+        var dequeued = await queue.DequeueAsync(CancellationToken.None);
+        Assert.NotNull(dequeued);
+        var context = new TaskExecutionContext(queue);
+        
+        if (dequeued is ITaskExecutable executable)
+        {
+            await executable.ExecuteAsync(context, CancellationToken.None);
+        }
+
+        // Assert - Parent should have 2 sub-tasks
+        Assert.Equal(2, parentTask.SubTaskIds.Count);
+
+        // Assert - Queue should have 2 sub-tasks
+        var subTask1 = await queue.DequeueAsync(CancellationToken.None);
+        var subTask2 = await queue.DequeueAsync(CancellationToken.None);
+        var subTask3 = await queue.DequeueAsync(CancellationToken.None);
+
+        Assert.NotNull(subTask1);
+        Assert.NotNull(subTask2);
+        Assert.Null(subTask3); // Queue should be empty now
+
+        Assert.Equal(parentTask.Id, subTask1.ParentTaskId);
+        Assert.Equal(parentTask.Id, subTask2.ParentTaskId);
+    }
+
+    [Fact]
+    public async Task SubTask_CanHaveItsOwnSubTasks()
+    {
+        // Arrange - Create a task hierarchy: Grandparent -> Parent -> Child
+        ITaskQueue queue = new InMemoryTaskQueue();
+        var grandparentTask = new ParentTask("grandparent");
+        await queue.EnqueueAsync(grandparentTask, CancellationToken.None); // Enqueue grandparent first
+        var context = new TaskExecutionContext(queue);
+
+        // Act - Grandparent creates parent as sub-task
+        var parentTask = new ParentTask("parent");
+        await context.Queue.EnqueueSubTaskAsync(parentTask, grandparentTask.Id, CancellationToken.None);
+
+        // Parent creates its own sub-task
+        var parentContext = new TaskExecutionContext(queue);
+        var childTask = new ChildTask("child");
+        await parentContext.Queue.EnqueueSubTaskAsync(childTask, parentTask.Id, CancellationToken.None);
+
+        // Assert
+        Assert.Single(grandparentTask.SubTaskIds);
+        Assert.Contains(parentTask.Id, grandparentTask.SubTaskIds);
+        Assert.Equal(grandparentTask.Id, parentTask.ParentTaskId);
+
+        Assert.Single(parentTask.SubTaskIds);
+        Assert.Contains(childTask.Id, parentTask.SubTaskIds);
+        Assert.Equal(parentTask.Id, childTask.ParentTaskId);
+    }
+
+    [Fact]
+    public void ExecutionContext_ShouldExposeQueue()
+    {
+        // Arrange
+        ITaskQueue queue = new InMemoryTaskQueue();
+        var context = new TaskExecutionContext(queue);
+
+        // Assert
+        Assert.Same(queue, context.Queue);
+    }
+}
