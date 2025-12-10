@@ -15,7 +15,9 @@ jobs:
         dotnet-version: '8.0.x'
     - name: Restore dependencies
       run: dotnet restore QueueItUp.sln
+    
     - name: Build
       run: dotnet build QueueItUp.sln --configuration Release --no-restore
+    
     - name: Test
-      run: dotnet test QueueItUp.sln --no-build --verbosity normal
+      run: dotnet test QueueItUp.sln
