@@ -14,7 +14,6 @@ public class InMemoryTaskQueue : ITaskQueue
     private readonly ConcurrentQueue<ITask> _waitingQueue = new();
     
     // Dictionary per status for fast lookups
-    private readonly ConcurrentDictionary<string, ITask> _newTasks = new();
     private readonly ConcurrentDictionary<string, ITask> _queuedTasks = new();
     private readonly ConcurrentDictionary<string, ITask> _sentToRunnerTasks = new();
     private readonly ConcurrentDictionary<string, ITask> _waitingOnDependenciesTasks = new();
@@ -64,10 +63,11 @@ public class InMemoryTaskQueue : ITaskQueue
         subTask.SetParentTaskId(parentTaskId);
         
         // Register the sub-task with the parent
-        if (TryGetTaskInfo(parentTaskId, out var parentTask))
+        if (TryGetTaskInfo(parentTaskId, out var parentTask) && parentTask != null)
         {
-            parentTask!.AddSubTaskId(subTask.Id);
+            parentTask.AddSubTaskId(subTask.Id);
         }
+        // Note: If parent not found, still enqueue the sub-task but parent-child link won't be bidirectional
         
         // Enqueue the sub-task
         await EnqueueAsync(subTask, cancellationToken);
@@ -109,7 +109,6 @@ public class InMemoryTaskQueue : ITaskQueue
     public bool TryGetTaskInfo(string taskId, out ITask? task)
     {
         // Check all status dictionaries
-        if (_newTasks.TryGetValue(taskId, out task)) return true;
         if (_queuedTasks.TryGetValue(taskId, out task)) return true;
         if (_sentToRunnerTasks.TryGetValue(taskId, out task)) return true;
         if (_waitingOnDependenciesTasks.TryGetValue(taskId, out task)) return true;
@@ -133,9 +132,9 @@ public class InMemoryTaskQueue : ITaskQueue
         return false;
     }
 
-    public void MarkTaskCompleted(string taskId, bool success = true)
+    public async void MarkTaskCompleted(string taskId, bool success = true)
     {
-        _queueSemaphore.Wait();
+        await _queueSemaphore.WaitAsync();
         try
         {
             var status = success ? Status.Completed : Status.Failed;
@@ -168,7 +167,6 @@ public class InMemoryTaskQueue : ITaskQueue
 
     private void RemoveFromAllDictionaries(string taskId)
     {
-        _newTasks.TryRemove(taskId, out _);
         _queuedTasks.TryRemove(taskId, out _);
         _sentToRunnerTasks.TryRemove(taskId, out _);
         _waitingOnDependenciesTasks.TryRemove(taskId, out _);

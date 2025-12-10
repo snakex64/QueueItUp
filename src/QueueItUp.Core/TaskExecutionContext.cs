@@ -22,14 +22,25 @@ public class TaskExecutionContext : ITaskExecutionContext
             return null;
         }
         
-        // Execute the task
-        if (task is ITaskExecutable executable)
+        bool success = true;
+        try
         {
-            await executable.ExecuteAsync(this, cancellationToken);
+            // Execute the task
+            if (task is ITaskExecutable executable)
+            {
+                await executable.ExecuteAsync(this, cancellationToken);
+            }
         }
-        
-        // Mark as completed
-        Queue.MarkTaskCompleted(task.Id, success: true);
+        catch
+        {
+            success = false;
+            throw;
+        }
+        finally
+        {
+            // Mark as completed or failed
+            Queue.MarkTaskCompleted(task.Id, success: success);
+        }
         
         return task;
     }
