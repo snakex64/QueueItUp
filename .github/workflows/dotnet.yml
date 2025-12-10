@@ -1,0 +1,23 @@
+name: .NET Build and Test
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    - name: Restore dependencies
+      run: dotnet restore QueueItUp.sln
+    
+    - name: Build
+      run: dotnet build QueueItUp.sln --configuration Release --no-restore
+    
+    - name: Test
+      run: dotnet test QueueItUp.sln
