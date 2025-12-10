@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\QueueItUp.Abstractions\QueueItUp.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\QueueItUp.Core\QueueItUp.Core.csproj" />
     <ProjectReference Include="..\..\src\QueueItUp.InMemory\QueueItUp.InMemory.csproj" />
+    <ProjectReference Include="..\..\src\QueueItUp.Agent\QueueItUp.Agent.csproj" />
   </ItemGroup>
 
 </Project>
