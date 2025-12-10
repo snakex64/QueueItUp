@@ -14,6 +14,7 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     private bool _hasExecuted = false;
 
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
+    public string Name { get; protected set; }
     public Status Status { get; protected set; } = Status.New;
     public string? ParentTaskId { get; private set; }
     public IReadOnlyList<string> SubTaskIds => _subTaskIds.AsReadOnly();
@@ -29,11 +30,13 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     protected TaskBase()
     {
         Input = default!;
+        Name = GetType().Name;
     }
 
     protected TaskBase(TInput input)
     {
         Input = input;
+        Name = GetType().Name;
     }
 
     /// <summary>

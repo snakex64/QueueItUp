@@ -6,88 +6,176 @@ namespace QueueItUp.InMemory;
 /// <summary>
 /// In-memory implementation of ITaskQueue for fast, ephemeral task management.
 /// Supports dependency-based task ordering - tasks are only dequeued when all their dependencies are completed.
-/// Uses a ready queue optimization to avoid scanning tasks that aren't ready.
+/// Uses separate dictionaries per status for optimized lookups.
 /// </summary>
 public class InMemoryTaskQueue : ITaskQueue
 {
     private readonly ConcurrentQueue<ITask> _readyQueue = new();
     private readonly ConcurrentQueue<ITask> _waitingQueue = new();
-    private readonly ConcurrentDictionary<string, ITask> _allTasks = new();
-    private readonly ConcurrentDictionary<string, Status> _taskStatuses = new();
-    private readonly object _queueLock = new();
+    
+    // Dictionary per status for fast lookups
+    private readonly ConcurrentDictionary<string, ITask> _newTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _queuedTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _sentToRunnerTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _waitingOnDependenciesTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _runningTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _completedTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _failedTasks = new();
+    private readonly ConcurrentDictionary<string, ITask> _canceledTasks = new();
+    
+    // For name-based lookups
+    private readonly ConcurrentDictionary<string, string> _taskNameToId = new();
+    
+    private readonly SemaphoreSlim _queueSemaphore = new(1, 1);
 
-    public Task EnqueueAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> task, CancellationToken cancellationToken = default)
+    public async Task EnqueueAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> task, CancellationToken cancellationToken = default)
     {
-        _allTasks[task.Id] = task;
-        _taskStatuses[task.Id] = task.Status;
-        
-        // Set status to Queued
-        task.SetStatus(Status.Queued);
-        _taskStatuses[task.Id] = Status.Queued;
-        
-        // Add to appropriate queue based on dependencies
-        lock (_queueLock)
+        await _queueSemaphore.WaitAsync(cancellationToken);
+        try
         {
+            // Register task by name
+            _taskNameToId[task.Name] = task.Id;
+            
+            // Set status to Queued
+            task.SetStatus(Status.Queued);
+            
+            // Add to appropriate queue based on dependencies
             if (AreDependenciesMet(task))
             {
                 _readyQueue.Enqueue(task);
+                _queuedTasks[task.Id] = task;
             }
             else
             {
                 task.SetStatus(Status.WaitingOnDependencies);
-                _taskStatuses[task.Id] = Status.WaitingOnDependencies;
                 _waitingQueue.Enqueue(task);
+                _waitingOnDependenciesTasks[task.Id] = task;
             }
         }
-        
-        return Task.CompletedTask;
+        finally
+        {
+            _queueSemaphore.Release();
+        }
     }
 
-    public Task<ITask?> DequeueAsync(CancellationToken cancellationToken = default)
+    public async Task EnqueueSubTaskAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> subTask, string parentTaskId, CancellationToken cancellationToken = default)
     {
-        lock (_queueLock)
+        // Set the parent-child relationship on the sub-task
+        subTask.SetParentTaskId(parentTaskId);
+        
+        // Register the sub-task with the parent
+        if (TryGetTaskInfo(parentTaskId, out var parentTask))
+        {
+            parentTask!.AddSubTaskId(subTask.Id);
+        }
+        
+        // Enqueue the sub-task
+        await EnqueueAsync(subTask, cancellationToken);
+    }
+
+    public async Task EnqueueNextTaskAsync<TInput, TOutput>(ITaskImplementation<TInput, TOutput> nextTask, string afterTaskId, CancellationToken cancellationToken = default)
+    {
+        // The next task depends on the specified task
+        nextTask.AddDependencyTaskId(afterTaskId);
+        
+        // Enqueue the next task
+        await EnqueueAsync(nextTask, cancellationToken);
+    }
+
+    public async Task<ITask?> DequeueAsync(CancellationToken cancellationToken = default)
+    {
+        await _queueSemaphore.WaitAsync(cancellationToken);
+        try
         {
             // Try to dequeue from ready queue
             if (_readyQueue.TryDequeue(out var task))
             {
-                // Set status to SentToRunner
+                // Move from queued to sent to runner
+                _queuedTasks.TryRemove(task.Id, out _);
                 task.SetStatus(Status.SentToRunner);
-                _taskStatuses[task.Id] = Status.SentToRunner;
+                _sentToRunnerTasks[task.Id] = task;
                 
-                return Task.FromResult<ITask?>(task);
+                return task;
             }
         }
+        finally
+        {
+            _queueSemaphore.Release();
+        }
         
-        return Task.FromResult<ITask?>(null);
+        return null;
     }
 
-    /// <summary>
-    /// Gets information about a specific task by ID, including completed tasks.
-    /// </summary>
-    public ITask? GetTaskInfo(string taskId)
+    public bool TryGetTaskInfo(string taskId, out ITask? task)
     {
-        _allTasks.TryGetValue(taskId, out var task);
-        return task;
+        // Check all status dictionaries
+        if (_newTasks.TryGetValue(taskId, out task)) return true;
+        if (_queuedTasks.TryGetValue(taskId, out task)) return true;
+        if (_sentToRunnerTasks.TryGetValue(taskId, out task)) return true;
+        if (_waitingOnDependenciesTasks.TryGetValue(taskId, out task)) return true;
+        if (_runningTasks.TryGetValue(taskId, out task)) return true;
+        if (_completedTasks.TryGetValue(taskId, out task)) return true;
+        if (_failedTasks.TryGetValue(taskId, out task)) return true;
+        if (_canceledTasks.TryGetValue(taskId, out task)) return true;
+        
+        task = null;
+        return false;
     }
 
-    /// <summary>
-    /// Marks a task as completed. This allows dependent tasks to be dequeued.
-    /// </summary>
+    public bool TryGetTaskInfoByName(string taskName, out ITask? task)
+    {
+        if (_taskNameToId.TryGetValue(taskName, out var taskId))
+        {
+            return TryGetTaskInfo(taskId, out task);
+        }
+        
+        task = null;
+        return false;
+    }
+
     public void MarkTaskCompleted(string taskId, bool success = true)
     {
-        var status = success ? Status.Completed : Status.Failed;
-        _taskStatuses[taskId] = status;
-        
-        if (_allTasks.TryGetValue(taskId, out var task))
+        _queueSemaphore.Wait();
+        try
         {
-            task.SetStatus(status);
-        }
-        
-        // Move any waiting tasks that are now ready to the ready queue
-        lock (_queueLock)
-        {
+            var status = success ? Status.Completed : Status.Failed;
+            
+            if (TryGetTaskInfo(taskId, out var task) && task != null)
+            {
+                // Remove from previous status dictionary
+                RemoveFromAllDictionaries(taskId);
+                
+                // Update status and add to appropriate dictionary
+                task.SetStatus(status);
+                if (success)
+                {
+                    _completedTasks[taskId] = task;
+                }
+                else
+                {
+                    _failedTasks[taskId] = task;
+                }
+            }
+            
+            // Move any waiting tasks that are now ready to the ready queue
             MoveReadyTasksFromWaitingQueue();
         }
+        finally
+        {
+            _queueSemaphore.Release();
+        }
+    }
+
+    private void RemoveFromAllDictionaries(string taskId)
+    {
+        _newTasks.TryRemove(taskId, out _);
+        _queuedTasks.TryRemove(taskId, out _);
+        _sentToRunnerTasks.TryRemove(taskId, out _);
+        _waitingOnDependenciesTasks.TryRemove(taskId, out _);
+        _runningTasks.TryRemove(taskId, out _);
+        _completedTasks.TryRemove(taskId, out _);
+        _failedTasks.TryRemove(taskId, out _);
+        _canceledTasks.TryRemove(taskId, out _);
     }
 
     private void MoveReadyTasksFromWaitingQueue()
@@ -99,8 +187,9 @@ public class InMemoryTaskQueue : ITaskQueue
             if (AreDependenciesMet(task))
             {
                 // Dependencies are now met, move to ready queue
+                _waitingOnDependenciesTasks.TryRemove(task.Id, out _);
                 task.SetStatus(Status.Queued);
-                _taskStatuses[task.Id] = Status.Queued;
+                _queuedTasks[task.Id] = task;
                 _readyQueue.Enqueue(task);
             }
             else
@@ -125,10 +214,10 @@ public class InMemoryTaskQueue : ITaskQueue
             return true;
         }
         
-        // Check if all dependencies are completed
+        // Check if all dependencies are completed - use the completed dictionary for fast lookup
         foreach (var dependencyId in task.DependencyTaskIds)
         {
-            if (!_taskStatuses.TryGetValue(dependencyId, out var status) || status != Status.Completed)
+            if (!_completedTasks.ContainsKey(dependencyId))
             {
                 return false;
             }

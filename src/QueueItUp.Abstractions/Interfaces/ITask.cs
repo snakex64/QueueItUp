@@ -6,6 +6,7 @@ namespace QueueItUp.Abstractions;
 public interface ITask
 {
     string Id { get; }
+    string Name { get; }
     Status Status { get; }
     
     /// <summary>

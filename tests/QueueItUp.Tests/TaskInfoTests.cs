@@ -25,7 +25,7 @@ public class TaskInfoTests
 
         // Act
         await queue.EnqueueAsync(task, CancellationToken.None);
-        var taskInfo = queue.GetTaskInfo(task.Id);
+        queue.TryGetTaskInfo(task.Id, out var taskInfo);
 
         // Assert
         Assert.NotNull(taskInfo);
@@ -40,7 +40,7 @@ public class TaskInfoTests
         var queue = new InMemoryTaskQueue();
 
         // Act
-        var taskInfo = queue.GetTaskInfo("non-existent-id");
+        queue.TryGetTaskInfo("non-existent-id", out var taskInfo);
 
         // Assert
         Assert.Null(taskInfo);
@@ -58,7 +58,7 @@ public class TaskInfoTests
         var dequeued = await queue.DequeueAsync(CancellationToken.None);
         Assert.NotNull(dequeued);
         
-        var context = new TaskExecutionContext(dequeued, queue);
+        var context = new TaskExecutionContext(queue);
         if (dequeued is ITaskExecutable executable)
         {
             await executable.ExecuteAsync(context, CancellationToken.None);
@@ -66,7 +66,7 @@ public class TaskInfoTests
         queue.MarkTaskCompleted(dequeued.Id);
 
         // Act - Get task info after completion
-        var taskInfo = queue.GetTaskInfo(task.Id);
+        queue.TryGetTaskInfo(task.Id, out var taskInfo);
 
         // Assert
         Assert.NotNull(taskInfo);
@@ -85,7 +85,7 @@ public class TaskInfoTests
         // Arrange
         var task = new CalculateTask(7);
         var queue = new InMemoryTaskQueue();
-        var context = new TaskExecutionContext(task, queue);
+        var context = new TaskExecutionContext(queue);
 
         // Act - Execute through ITaskExecutable
         if (task is ITaskExecutable executable)
@@ -107,7 +107,7 @@ public class TaskInfoTests
 
         // Execute task1
         var dequeued1 = await queue.DequeueAsync(CancellationToken.None);
-        var context1 = new TaskExecutionContext(dequeued1!, queue);
+        var context1 = new TaskExecutionContext(queue);
         if (dequeued1 is ITaskExecutable executable1)
         {
             await executable1.ExecuteAsync(context1, CancellationToken.None);
@@ -115,10 +115,11 @@ public class TaskInfoTests
         queue.MarkTaskCompleted(dequeued1!.Id);
 
         // Act - Get task1 info and access its output for task2
-        var task1Info = queue.GetTaskInfo(task1.Id);
-        Assert.NotNull(task1Info);
-        Assert.IsType<CalculateTask>(task1Info);
-        var completedTask1 = (CalculateTask)task1Info;
+        var found = queue.TryGetTaskInfo(task1.Id, out var taskInfo);
+        Assert.True(found);
+        Assert.NotNull(taskInfo);
+        Assert.IsType<CalculateTask>(taskInfo);
+        var completedTask1 = (CalculateTask)taskInfo;
         
         // Create task2 using task1's output
         var task2 = new CalculateTask(completedTask1.Output!);
@@ -126,7 +127,7 @@ public class TaskInfoTests
 
         // Execute task2
         var dequeued2 = await queue.DequeueAsync(CancellationToken.None);
-        var context2 = new TaskExecutionContext(dequeued2!, queue);
+        var context2 = new TaskExecutionContext(queue);
         if (dequeued2 is ITaskExecutable executable2)
         {
             await executable2.ExecuteAsync(context2, CancellationToken.None);

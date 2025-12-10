@@ -28,17 +28,17 @@ public class SearchWebTask : TaskBase<string, List<string>>
         
         // Create sub-task 1: Search Google
         var googleSearchTask = new GoogleSearchTask(Input);
-        await context.EnqueueSubTaskAsync(googleSearchTask, cancellationToken);
+        await context.Queue.EnqueueSubTaskAsync(googleSearchTask, this.Id, cancellationToken);
         Console.WriteLine($"[SearchWebTask] Enqueued GoogleSearchTask (ID: {googleSearchTask.Id})");
         
         // Create sub-task 2: Filter Pages
         var filterTask = new FilterPagesTask(new List<string> { "page1.html", "page2.html", "page3.html" });
-        await context.EnqueueSubTaskAsync(filterTask, cancellationToken);
+        await context.Queue.EnqueueSubTaskAsync(filterTask, this.Id, cancellationToken);
         Console.WriteLine($"[SearchWebTask] Enqueued FilterPagesTask (ID: {filterTask.Id})");
         
         // Create sub-task 3: Download Pages
         var downloadTask = new DownloadPagesTask(new List<string> { "page1.html", "page2.html" });
-        await context.EnqueueSubTaskAsync(downloadTask, cancellationToken);
+        await context.Queue.EnqueueSubTaskAsync(downloadTask, this.Id, cancellationToken);
         Console.WriteLine($"[SearchWebTask] Enqueued DownloadPagesTask (ID: {downloadTask.Id})");
         
         _results.Add($"Created {SubTaskIds.Count} sub-tasks");
@@ -121,7 +121,7 @@ public class GeneratePlanTask : TaskBase<string, List<string>>
         
         // Enqueue ExecutePlanTask as next task (will wait for this task to complete)
         var executePlanTask = new ExecutePlanTask(_plan);
-        await context.EnqueueNextTaskAsync(executePlanTask, cancellationToken);
+        await context.Queue.EnqueueNextTaskAsync(executePlanTask, this.Id, cancellationToken);
         Console.WriteLine($"[GeneratePlanTask] Enqueued ExecutePlanTask as next task (ID: {executePlanTask.Id})");
         
         return _plan;
@@ -143,13 +143,13 @@ public class ExecutePlanTask : TaskBase<List<string>, List<string>>
         foreach (var step in Input)
         {
             var stepTask = new PlanStepTask(step);
-            await context.EnqueueSubTaskAsync(stepTask, cancellationToken);
+            await context.Queue.EnqueueSubTaskAsync(stepTask, this.Id, cancellationToken);
             Console.WriteLine($"  [ExecutePlanTask] Enqueued sub-task: {step} (ID: {stepTask.Id})");
         }
         
         // Enqueue ReviewTask as next task (will wait for this task AND all sub-tasks to complete)
         var reviewTask = new ReviewTask(Input.Count);
-        await context.EnqueueNextTaskAsync(reviewTask, cancellationToken);
+        await context.Queue.EnqueueNextTaskAsync(reviewTask, this.Id, cancellationToken);
         Console.WriteLine($"[ExecutePlanTask] Enqueued ReviewTask as next task (ID: {reviewTask.Id})");
         Console.WriteLine($"  [ExecutePlanTask] ReviewTask has {reviewTask.DependencyTaskIds.Count} dependencies");
         
@@ -248,7 +248,7 @@ class Program
         if (dequeued == null) return false;
         
         // Create execution context and execute using non-generic interface
-        var context = new TaskExecutionContext(dequeued, queue);
+        var context = new TaskExecutionContext(queue);
         
         if (dequeued is ITaskExecutable executable)
         {
@@ -266,7 +266,7 @@ class Program
         Console.WriteLine($"[Main] Dequeued task: {dequeued.GetType().Name} (ID: {dequeued.Id}, Status: {dequeued.Status}, Dependencies: {dequeued.DependencyTaskIds.Count})");
         
         // Create execution context and execute using non-generic interface
-        var context = new TaskExecutionContext(dequeued, queue);
+        var context = new TaskExecutionContext(queue);
         
         if (dequeued is ITaskExecutable executable)
         {

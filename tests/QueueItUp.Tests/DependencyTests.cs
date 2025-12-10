@@ -30,7 +30,7 @@ public class DependencyTests
         {
             // Enqueue a next task
             var nextTask = new SimpleTask(_nextTaskInput);
-            await context.EnqueueNextTaskAsync(nextTask, cancellationToken);
+            await context.Queue.EnqueueNextTaskAsync(nextTask, this.Id, cancellationToken);
             return true;
         }
 
@@ -43,11 +43,11 @@ public class DependencyTests
         public override async Task<bool> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
         {
             // Create 2 sub-tasks
-            await context.EnqueueSubTaskAsync(new SimpleTask("sub1"), cancellationToken);
-            await context.EnqueueSubTaskAsync(new SimpleTask("sub2"), cancellationToken);
+            await context.Queue.EnqueueSubTaskAsync(new SimpleTask("sub1"), this.Id, cancellationToken);
+            await context.Queue.EnqueueSubTaskAsync(new SimpleTask("sub2"), this.Id, cancellationToken);
             
             // Create a next task that depends on this task and all sub-tasks
-            await context.EnqueueNextTaskAsync(new SimpleTask("next"), cancellationToken);
+            await context.Queue.EnqueueNextTaskAsync(new SimpleTask("next"), this.Id, cancellationToken);
             
             return true;
         }
@@ -85,11 +85,11 @@ public class DependencyTests
         // Arrange
         ITaskQueue queue = new InMemoryTaskQueue();
         var currentTask = new SimpleTask("current");
-        var context = new TaskExecutionContext(currentTask, queue);
+        var context = new TaskExecutionContext(queue);
         var nextTask = new SimpleTask("next");
 
         // Act
-        await context.EnqueueNextTaskAsync(nextTask, CancellationToken.None);
+        await context.Queue.EnqueueNextTaskAsync(nextTask, currentTask.Id, CancellationToken.None);
 
         // Assert
         Assert.Single(nextTask.DependencyTaskIds);
@@ -107,11 +107,11 @@ public class DependencyTests
         currentTask.AddSubTaskId("sub-1");
         currentTask.AddSubTaskId("sub-2");
         
-        var context = new TaskExecutionContext(currentTask, queue);
+        var context = new TaskExecutionContext(queue);
         var nextTask = new SimpleTask("next");
 
         // Act
-        await context.EnqueueNextTaskAsync(nextTask, CancellationToken.None);
+        await context.Queue.EnqueueNextTaskAsync(nextTask, currentTask.Id, CancellationToken.None);
 
         // Assert - Next task should only depend on current task, NOT sub-tasks
         Assert.Single(nextTask.DependencyTaskIds);
@@ -224,7 +224,7 @@ public class DependencyTests
         
         // Execute parent task
         var dequeued = await queue.DequeueAsync(CancellationToken.None);
-        var context = new TaskExecutionContext(dequeued!, queue);
+        var context = new TaskExecutionContext(queue);
         if (dequeued is ITaskExecutable executable)
         {
             await executable.ExecuteAsync(context, CancellationToken.None);

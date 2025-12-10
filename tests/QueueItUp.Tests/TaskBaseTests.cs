@@ -55,7 +55,7 @@ public class TaskBaseTests
         // Arrange
         var task = new TestTask("hello");
         var queue = new InMemory.InMemoryTaskQueue();
-        var context = new TaskExecutionContext(task, queue);
+        var context = new TaskExecutionContext(queue);
 
         // Act
         var result = await task.ExecuteAsync(context, CancellationToken.None);
@@ -85,7 +85,7 @@ public class TaskBaseTests
         // Arrange
         var task = new TestTask("test");
         var queue = new InMemory.InMemoryTaskQueue();
-        var context = new TaskExecutionContext(task, queue);
+        var context = new TaskExecutionContext(queue);
         
         // Execute through ITaskExecutable to trigger SetOutput
         if (task is ITaskExecutable executable)
