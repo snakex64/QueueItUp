@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>QueueItUp.Agent</AssemblyName>
@@ -10,6 +10,7 @@
     <ProjectReference Include="../QueueItUp.Core/QueueItUp.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.31.0" />
+    <PackageReference Include="DiffMatchPatch" Version="5.0.0" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.68.0" />
   </ItemGroup>
 </Project>

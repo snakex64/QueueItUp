@@ -8,7 +8,7 @@ namespace QueueItUp.Agent;
 /// A coding agent that uses the FileSystem plugin to solve coding tasks.
 /// Outputs file changes and continues in a loop until completion is signaled.
 /// </summary>
-public class CodingAgent : AgentBase
+public class CodingAgent : AgentBase, ITaskExecutable
 {
     private readonly FileSystemPlugin _fileSystemPlugin;
     private readonly CodingAgentCompletionPlugin _completionPlugin;
@@ -32,8 +32,14 @@ public class CodingAgent : AgentBase
 1. Using the {FileSystemPluginName} plugin to list and read files
 2. Understanding the code structure
 3. Making necessary changes to files using UpdateFile
-4. Writing small comments before each action like 'I'll now generate the method XY so it can do ABC'
+4. Writing small comments before each action or plugin/function call like 'I'll now generate the method XY so it can do ABC'
 5. When you're done, call the {CompletionPluginName}.MarkComplete function with a description of what you accomplished
+6. When calling a plugin, talk in the future. The plugin will only be called after. i.e. do not say 'file was updated' at the same time as trying to update it, wait to get a response back from the plugin
+7. Always search for a file before trying to access it, so that you know the exact path
+8. Prefer search the web when encountering anything unknown.
+
+When you write code, ensure it is correct and complete. Do not leave placeholders like '...'.
+To add new methods in a file use the InsertLinesAt function. To update an existing method use UpdateCodeBetweenAnchorsFuzzy. Try to specify significant anchors around the code you want to change.
 
 Always think step by step and explain what you're doing.");
     }
@@ -50,7 +56,7 @@ Always think step by step and explain what you're doing.");
             iterations++;
             results.Add($"--- Iteration {iterations} ---");
             
-            var response = await GetLLMResponseAsync(cancellationToken);
+            var response = await GetLLMResponseAsync(false, cancellationToken);
             results.Add(response);
             
             if (_completionPlugin.IsCompleted)

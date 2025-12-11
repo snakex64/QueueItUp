@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31912.275
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11222.16 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueueItUp.Core", "src\QueueItUp.Core\QueueItUp.Core.csproj", "{11111111-1111-1111-1111-111111111111}"
 EndProject
@@ -18,8 +18,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueueItUp.Tests", "tests\QueueItUp.Tests\QueueItUp.Tests.csproj", "{17284F19-8716-4A40-BBEF-55414A2D012C}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueueItUp.Agent", "src\QueueItUp.Agent\QueueItUp.Agent.csproj", "{97B536A1-6117-4B8D-8493-BEC423E2E930}"
 EndProject
@@ -135,6 +133,8 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{17284F19-8716-4A40-BBEF-55414A2D012C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
-		{97B536A1-6117-4B8D-8493-BEC423E2E930} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EF34C4AB-7275-45ED-87F8-5FB4ECE9F3A1}
 	EndGlobalSection
 EndGlobal

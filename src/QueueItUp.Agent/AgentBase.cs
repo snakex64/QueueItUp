@@ -57,24 +57,29 @@ public abstract class AgentBase : TaskBase<string, string>
     /// <summary>
     /// Sends a request to the LLM using the current chat history and returns the response.
     /// </summary>
-    protected async Task<string> GetLLMResponseAsync(CancellationToken cancellationToken = default)
+
+    protected async Task<string> GetLLMResponseAsync(bool forceToolChoice, CancellationToken cancellationToken = default)
     {
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        var functionChoiceBehavior = new FunctionChoiceBehaviorOptions()
+        {
+            AllowStrictSchemaAdherence = true,
+            AllowParallelCalls = true,
+            AllowConcurrentInvocation = false,
+            RetainArgumentTypes = true
+        };
+#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
         var result = await ChatCompletionService.GetChatMessageContentAsync(
             ChatHistory,
+            new PromptExecutionSettings()
+            {
+                FunctionChoiceBehavior = forceToolChoice ? FunctionChoiceBehavior.Required(options: functionChoiceBehavior) : FunctionChoiceBehavior.Auto(options: functionChoiceBehavior)
+            },
             kernel: Kernel,
             cancellationToken: cancellationToken);
 
         var responseText = result.Content ?? string.Empty;
-        ChatHistory.AddAssistantMessage(responseText);
         return responseText;
-    }
-
-    /// <summary>
-    /// Sends a message and gets a response from the LLM.
-    /// </summary>
-    protected async Task<string> SendMessageAsync(string message, CancellationToken cancellationToken = default)
-    {
-        AddUserMessage(message);
-        return await GetLLMResponseAsync(cancellationToken);
     }
 }

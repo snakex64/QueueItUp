@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using QueueItUp.Abstractions;
 using QueueItUp.Agent.Plugins;
@@ -8,90 +9,68 @@ namespace QueueItUp.Agent;
 /// The brain of the operation. Asks the LLM to choose which agent to use for the next step
 /// and queues up the appropriate task.
 /// </summary>
-public class AgentOrchestrator : AgentBase
+public class AgentOrchestrator : AgentBase, ITaskExecutable
 {
+
     private readonly FileSystemPlugin _fileSystemPlugin;
+    private readonly AgentSelectionPlugin _agentSelectionPlugin;
     private readonly string _basePath;
 
     public AgentOrchestrator(string input, Kernel kernel, string basePath) : base(input, kernel)
     {
         _basePath = basePath;
         _fileSystemPlugin = new FileSystemPlugin(basePath);
-        
-        // Add plugins to help determine which agent to use
-        AddPlugin(_fileSystemPlugin, "FileSystem");
-        
-        // Set up system message
+        _agentSelectionPlugin = new AgentSelectionPlugin();
+
+        AddPlugin(_agentSelectionPlugin, "AgentSelection");
+
         AddSystemMessage(@"You are an orchestrator agent. Your job is to:
 1. Analyze the user's request/instruction
-2. Use available tools like FileSystem to understand the context
-3. Decide which specialized agent should handle this task:
+2. Call the SelectAgent plugin function to select which specialized agent should handle this task and provide a description for the agent.
    - CodingAgent: For tasks that involve writing, modifying, or fixing code
    - (More agents can be added in the future)
-4. Provide a clear, detailed description of what the chosen agent should do
+3. Do not try to do the task yourself, ALWAYS delegate. Never code anything yourself
+4. When calling a plugin, talk in the future. The plugin will only be called after. i.e. do not say 'file was updated' at the same time as trying to update it, wait to get a response back from the plugin
 
-Respond in the following format:
-AGENT: <agent_name>
-DESCRIPTION: <detailed description of what the agent should do>
-
-Example:
-AGENT: CodingAgent
-DESCRIPTION: Create a new class called UserService in the src/Services directory that handles user authentication and includes methods for login, logout, and password reset.");
+Once you have selected an agent, the software will queue up the appropriate agent task, only ever call that tool once. Stop working once the SelectAgent function has been called.
+");
     }
+
 
     public override async Task<string> ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken)
     {
         AddUserMessage(Input);
-        
-        var response = await GetLLMResponseAsync(cancellationToken);
-        
-        // Parse the response to determine which agent to use
-        var (agentName, description) = ParseOrchestratorResponse(response);
-        
-        if (string.IsNullOrEmpty(agentName) || string.IsNullOrEmpty(description))
+
+        int i = 0;
+        while (_agentSelectionPlugin.Result == null)
         {
-            return $"Error: Could not determine which agent to use.\nLLM Response: {response}";
+            var response = await GetLLMResponseAsync(false, cancellationToken);
+            Console.WriteLine(response);
+
+            if (i == 10)
+            {
+                return "Error: Unable to determine which agent to use after multiple attempts.";
+            }
         }
-        
+
         // Queue the appropriate agent task
         string taskId;
-        
-        switch (agentName.ToLowerInvariant())
+
+        var scope = Kernel.Services.CreateScope();
+        switch (_agentSelectionPlugin.Result.AgentName)
         {
-            case "codingagent":
-                var codingAgent = new CodingAgent(description, Kernel, _basePath);
+            case AgentSelectionPlugin.AgentNames.CodingAgent:
+                var codingAgent = new CodingAgent(_agentSelectionPlugin.Result.Description, scope.ServiceProvider.GetRequiredService<Kernel>(), _basePath);
                 await context.Queue.EnqueueSubTaskAsync(codingAgent, this.Id, cancellationToken);
                 taskId = codingAgent.Id;
                 break;
             default:
-                return $"Error: Unknown agent type '{agentName}'.\nAvailable agents: CodingAgent";
+                return $"Error: Unknown agent type '{_agentSelectionPlugin.Result.AgentName}'.\nAvailable agents: CodingAgent";
         }
-        
-        return $"Orchestrator Decision:\nAgent: {agentName}\nDescription: {description}\nTask ID: {taskId}";
+
+        return $"Orchestrator Decision:\nAgent: {_agentSelectionPlugin.Result.AgentName}\nDescription: {_agentSelectionPlugin.Result.Description}\nTask ID: {taskId}";
     }
 
-    private (string agentName, string description) ParseOrchestratorResponse(string response)
-    {
-        const string AgentPrefix = "AGENT:";
-        const string DescriptionPrefix = "DESCRIPTION:";
-        
-        var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        
-        string? agentName = null;
-        string? description = null;
-        
-        foreach (var line in lines)
-        {
-            if (line.StartsWith(AgentPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                agentName = line.Substring(AgentPrefix.Length).Trim();
-            }
-            else if (line.StartsWith(DescriptionPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                description = line.Substring(DescriptionPrefix.Length).Trim();
-            }
-        }
-        
-        return (agentName ?? string.Empty, description ?? string.Empty);
-    }
+
+    // No longer needed: ParseOrchestratorResponse
 }

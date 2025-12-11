@@ -13,6 +13,8 @@ public abstract class TaskBase<TInput, TOutput> : ITaskImplementation<TInput, TO
     private TOutput? _output;
     private bool _hasExecuted = false;
 
+    public string StringOutput => _output?.ToString() ?? string.Empty;
+
     public string Id { get; protected set; } = Guid.NewGuid().ToString();
     public string Name { get; protected set; }
     public Status Status { get; protected set; } = Status.New;
