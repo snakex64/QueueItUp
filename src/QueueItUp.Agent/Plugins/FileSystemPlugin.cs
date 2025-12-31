@@ -12,6 +12,8 @@ public class FileSystemPlugin
 {
     private readonly string _basePath;
 
+    private Action? _lastActionIfConfirmed;
+
     public FileSystemPlugin(string basePath)
     {
         _basePath = basePath ?? throw new ArgumentNullException(nameof(basePath));
@@ -133,7 +135,27 @@ public class FileSystemPlugin
     }
 
     [KernelFunction]
-    [Description("Applies a code edit to a file by searching for a block of code and replacing it with new code. Uses fuzzy matching to locate the search block.")]
+    [Description("Confirms and applies the last proposed code edit. Use this after reviewing the output of ApplyCodeEdit")]
+    public string ConfirmChange()
+    {
+        if (_lastActionIfConfirmed == null)
+        {
+            return "No pending change to confirm.";
+        }
+        try
+        {
+            _lastActionIfConfirmed.Invoke();
+            _lastActionIfConfirmed = null;
+            return "Change applied successfully.";
+        }
+        catch (Exception ex)
+        {
+            return $"Error applying change: {ex.Message}";
+        }
+    }
+
+    [KernelFunction]
+    [Description("Applies a code edit to a file by searching for a block of code and replacing it with new code. Uses fuzzy matching to locate the search block. Use unique searchBlock to ensure only one result possible. Prefer calling this as little as possible (one big block change as opposed to many small ones) as each call takes a lot of time")]
     public string ApplyCodeEdit(
             [Description("The path of the file to edit, relative to the base path")] string filePath,
             [Description("The block of code to search for in the original content")] string searchBlock,
@@ -141,6 +163,8 @@ public class FileSystemPlugin
     {
         try
         {
+            _lastActionIfConfirmed = null;
+
             var fullPath = Path.GetFullPath(Path.Combine(_basePath, filePath));
             var basePath = Path.GetFullPath(_basePath);
 
@@ -173,9 +197,12 @@ public class FileSystemPlugin
             {
                 var newText = ReplaceFirstOccurrence(originalFileContent, searchBlock, replaceBlock);
 
-                File.WriteAllText(fullPath, newText);
+                _lastActionIfConfirmed = () =>
+                {
+                    File.WriteAllText(fullPath, newText);
+                };
 
-                return newText;
+                return $"Here is the modified file content.\nPlease confirm to apply this change. Use the `ConfirmChange` function to proceed, or call again this function to adjust the edit\n\n\n{newText}";
             }
 
             // 2. Attempt Whitespace-Insensitive Line Match (Good for indentation errors)
@@ -199,9 +226,12 @@ public class FileSystemPlugin
             {
                 var newText = ApplyLineReplacement(fileLines, searchLines, replaceLines, matchIndex);
 
-                File.WriteAllText(fullPath, newText);
+                _lastActionIfConfirmed = () =>
+                {
+                    File.WriteAllText(fullPath, newText);
+                };
 
-                return newText;
+                return $"Here is the modified file content.\nPlease confirm to apply this change. Use the `ConfirmChange` function to proceed, or call again this function to adjust the edit\n\n\n{newText}";
             }
 
             return "ERROR: Could not locate the SEARCH block in the file. Please ensure the SEARCH block matches the file content exactly.";
