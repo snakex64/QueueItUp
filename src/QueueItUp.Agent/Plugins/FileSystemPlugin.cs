@@ -162,6 +162,12 @@ public class FileSystemPlugin
             searchBlock = NormalizeLineEndings(searchBlock);
             replaceBlock = NormalizeLineEndings(replaceBlock);
 
+            // Validate search block is not empty
+            if (string.IsNullOrWhiteSpace(searchBlock))
+            {
+                return "ERROR: Search block cannot be empty.";
+            }
+
             // 1. Attempt Exact Match (Fastest)
             if (originalFileContent.Contains(searchBlock))
             {

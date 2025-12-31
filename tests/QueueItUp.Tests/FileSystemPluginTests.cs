@@ -30,24 +30,8 @@ public class FileSystemPluginTests
         Assert.Throws<DirectoryNotFoundException>(() => new FileSystemPlugin(invalidPath));
     }
 
-    [Fact]
-    public async Task FileSystemPlugin_UpdateFile_ShouldCreateFile()
-    {
-        // Arrange
-        var plugin = new FileSystemPlugin(_testBasePath);
-        var fileName = "test.txt";
-        var content = "Hello, World!";
-
-        // Act
-        var result = await plugin.UpdateFile(fileName, content);
-
-        // Assert
-        Assert.Contains("Successfully updated file", result);
-        var fullPath = Path.Combine(_testBasePath, fileName);
-        Assert.True(File.Exists(fullPath));
-        var actualContent = await File.ReadAllTextAsync(fullPath);
-        Assert.Equal(content, actualContent);
-    }
+    // UpdateFile method was replaced with ApplyCodeEdit
+    // See ApplyCodeEditTests.cs for comprehensive tests
 
     [Fact]
     public async Task FileSystemPlugin_ReadFile_ExistingFile_ShouldReturnContent()
@@ -128,20 +112,7 @@ public class FileSystemPluginTests
         Assert.Contains("Error: Access denied - path is outside the allowed directory", result);
     }
 
-    [Fact]
-    public async Task FileSystemPlugin_UpdateFile_PathTraversal_ShouldDenyAccess()
-    {
-        // Arrange
-        var plugin = new FileSystemPlugin(_testBasePath);
-        var maliciousPath = "../../../tmp/malicious.txt";
-        var content = "malicious content";
-
-        // Act
-        var result = await plugin.UpdateFile(maliciousPath, content);
-
-        // Assert
-        Assert.Contains("Error: Access denied - path is outside the allowed directory", result);
-    }
+    // Path traversal test for ApplyCodeEdit is in ApplyCodeEditTests.cs
 
     [Fact]
     public void FileSystemPlugin_ListFiles_PathTraversal_ShouldDenyAccess()
