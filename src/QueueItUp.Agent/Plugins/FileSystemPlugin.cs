@@ -15,7 +15,7 @@ public class FileSystemPlugin
     public FileSystemPlugin(string basePath)
     {
         _basePath = basePath ?? throw new ArgumentNullException(nameof(basePath));
-        
+
         if (!Directory.Exists(_basePath))
         {
             throw new DirectoryNotFoundException($"Base path does not exist: {_basePath}");
@@ -33,7 +33,7 @@ public class FileSystemPlugin
         {
             var files = new List<string>();
             var basePath = Path.GetFullPath(_basePath);
-            
+
             // Handle different pattern types
             if (pattern.Contains("**"))
             {
@@ -41,14 +41,14 @@ public class FileSystemPlugin
                 var parts = pattern.Split("**", 2);
                 var dirPart = string.IsNullOrWhiteSpace(parts[0]) ? _basePath : Path.Combine(_basePath, parts[0].Trim('/').Trim('\\'));
                 var searchPattern = parts.Length > 1 ? parts[1].Trim('/').Trim('\\') : "*";
-                
+
                 // Validate the directory part is within base path
                 var fullDirPath = Path.GetFullPath(dirPart);
                 if (!fullDirPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
                 {
                     return $"Error: Pattern specifies a directory outside the allowed base path";
                 }
-                
+
                 if (Directory.Exists(fullDirPath))
                 {
                     files.AddRange(Directory.GetFiles(fullDirPath, searchPattern, SearchOption.AllDirectories));
@@ -59,17 +59,17 @@ public class FileSystemPlugin
                 // Simple pattern
                 var directory = Path.GetDirectoryName(pattern);
                 var fileName = Path.GetFileName(pattern);
-                
+
                 var searchDir = string.IsNullOrEmpty(directory) ? _basePath : Path.Combine(_basePath, directory);
                 var searchPattern = string.IsNullOrEmpty(fileName) ? "*" : fileName;
-                
+
                 // Validate the search directory is within base path
                 var fullSearchDir = Path.GetFullPath(searchDir);
                 if (!fullSearchDir.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
                 {
                     return $"Error: Pattern specifies a directory outside the allowed base path";
                 }
-                
+
                 if (Directory.Exists(fullSearchDir))
                 {
                     files.AddRange(Directory.GetFiles(fullSearchDir, searchPattern, SearchOption.AllDirectories));
@@ -86,7 +86,7 @@ public class FileSystemPlugin
                     relativeFiles.Add(Path.GetRelativePath(_basePath, fullPath));
                 }
             }
-            
+
             if (relativeFiles.Count == 0)
             {
                 return $"No files found matching pattern: {pattern}";
@@ -111,13 +111,13 @@ public class FileSystemPlugin
         {
             var fullPath = Path.GetFullPath(Path.Combine(_basePath, filePath));
             var basePath = Path.GetFullPath(_basePath);
-            
+
             // Validate that the resolved path is within the base directory
             if (!fullPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
             {
                 return $"Error: Access denied - path is outside the allowed directory: {filePath}";
             }
-            
+
             if (!File.Exists(fullPath))
             {
                 return $"Error: File not found at path: {filePath}";
@@ -132,116 +132,204 @@ public class FileSystemPlugin
         }
     }
 
-    /// <summary>
-    /// Updates multiple ranges of lines in a file with the specified content for each range.
-    /// </summary>
     [KernelFunction]
-    [Description("Replaces code between two anchors using fuzzy matching. Best for inserting/changing code when you aren't 100% sure of the surrounding whitespace. i.e. to add new functions use the end of a method as 'startAnchor' and the beginning of the next one as 'endAnchor', this will insert the 'newContent' in between the two methods. Use short and concise anchors such as 2-3 lines. Do not use lines like '}' or '{' since those are found everywhere.")]
-    public string UpdateCodeBetweenAnchorsFuzzy(
-     [Description("Relative path to the file.")] string relativeFilePath,
-     [Description("The previous couple of lines BEFORE the change. Must be significative enough that it can be found and matched in the file. DO NOT give the start of a method unless you're trying to replace that method. Give 3-4 lines.")] string startAnchor,
-     [Description("The following couple of lines AFTER the change. Must be significative enough that it can be found and matched in the file. DO NOT give the end of a method unless you're trying to replace that method. DO NOT give simple anchors like '{' and '}'. Give 3-4 lines.")] string endAnchor,
-     [Description("The new code to insert in between the anchors.")] string newContent)
+    [Description("Applies a code edit to a file by searching for a block of code and replacing it with new code. Uses fuzzy matching to locate the search block.")]
+    public string ApplyCodeEdit(
+            [Description("The path of the file to edit, relative to the base path")] string filePath,
+            [Description("The block of code to search for in the original content")] string searchBlock,
+            [Description("The block of code to replace the search block with")] string replaceBlock)
     {
         try
         {
-            var fullPath = Path.GetFullPath(Path.Combine(_basePath, relativeFilePath));
+            var fullPath = Path.GetFullPath(Path.Combine(_basePath, filePath));
             var basePath = Path.GetFullPath(_basePath);
 
             // Validate that the resolved path is within the base directory
             if (!fullPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
             {
-                return $"Error: Access denied - path is outside the allowed directory: {relativeFilePath}";
-            }
-            string fileContent = File.ReadAllText(fullPath);
-
-            // Normalize inputs strictly for the diff algorithm to function best
-            // We do not modify the original fileContent yet.
-            string contentForMatching = fileContent.Replace("\r\n", "\n");
-            string startAnchorNorm = startAnchor.Replace("\r\n", "\n").Trim(); // Trim helps fuzzy match focus on content
-            string endAnchorNorm = endAnchor.Replace("\r\n", "\n").Trim();
-
-            var dmp = new diff_match_patch
-            {
-                Match_Threshold = 0.5f,   // 0.5 = loose match, 0.0 = exact
-                Match_Distance = 5000    // Look far and wide in the file
-            };
-
-            // ---------------------------------------------------------
-            // 1. Locate the START Anchor
-            // ---------------------------------------------------------
-            int startIndex = dmp.match_main(contentForMatching, startAnchorNorm, 0);
-
-            if (startIndex == -1)
-                return $"Error: Start anchor not found (Fuzzy match failed). Anchor: '{startAnchor.Substring(0, Math.Min(20, startAnchor.Length))}...'";
-
-            // 'match_main' returns the index of the BEGINNING of the match.
-            // We need the END of the match to insert *after* it.
-            // Since it's fuzzy, we can't just add startAnchor.Length.
-            // We assume the match length is roughly the anchor length, but let's verify.
-            // Strategy: Use the found index, grab a substring of anchor length, and assume that's the spot.
-            // A safer way in DMP is tricky, but adding length is standard for 'match'.
-            int startInsertionPoint = startIndex + startAnchorNorm.Length;
-
-            // ---------------------------------------------------------
-            // 2. Locate the END Anchor
-            // ---------------------------------------------------------
-            // We search starting from where the first anchor ended to avoid finding an end anchor *before* the start.
-            int searchFrom = startInsertionPoint;
-            if (searchFrom >= contentForMatching.Length)
-                return "Error: Start anchor is at the very end of the file.";
-
-            int endIndex = dmp.match_main(contentForMatching, endAnchorNorm, searchFrom);
-
-            if (endIndex == -1)
-                return $"Error: End anchor not found after the start anchor. Anchor: '{endAnchor.Substring(0, Math.Min(20, endAnchor.Length))}...'";
-
-            // The insertion point for the end anchor is its BEGINNING (we insert *before* it).
-            int endInsertionPoint = endIndex;
-
-            // ---------------------------------------------------------
-            // 3. Validation
-            // ---------------------------------------------------------
-            if (endInsertionPoint <= startInsertionPoint)
-            {
-                // If the fuzzy matcher found the end anchor overlapping or before the start anchor
-                return "Error: The End Anchor was found before or overlapping the Start Anchor. Please provide unique anchors.";
+                return $"Error: Access denied - path is outside the allowed directory: {filePath}";
             }
 
-            // ---------------------------------------------------------
-            // 4. Stitching
-            // ---------------------------------------------------------
-            // Note: We used 'contentForMatching' (LF only) for indices.
-            // If the original file was CRLF, indices might slightly drift if we aren't careful.
-            // SAFEST BET: Reconstruct using the LF normalized string, then convert back to CRLF at the end.
-
-            string partA = contentForMatching.Substring(0, startInsertionPoint);
-            string partB = newContent.Replace("\r\n", "\n");
-            string partC = contentForMatching.Substring(endInsertionPoint);
-
-            // Does Part A end with a newline? If not, and Part B doesn't start with one, we might merge lines.
-            // Optional: Smart whitespace injection
-            if (!partA.EndsWith("\n") && !partB.StartsWith("\n")) partB = "\n" + partB;
-            if (!partB.EndsWith("\n") && !partC.StartsWith("\n")) partB = partB + "\n";
-
-            string finalContent = partA + partB + partC;
-
-            // ---------------------------------------------------------
-            // 5. Restore Windows Line Endings
-            // ---------------------------------------------------------
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT || fileContent.Contains("\r\n"))
+            if (!File.Exists(fullPath))
             {
-                finalContent = finalContent.Replace("\n", "\r\n");
+                return $"Error: File not found at path: {filePath}";
             }
 
-            File.WriteAllText(fullPath + ".bak", fileContent);
-            File.WriteAllText(fullPath, finalContent);
+            var originalFileContent = File.ReadAllText(fullPath);
 
-            return "Success: Updated between fuzzy anchors.";
+            // Normalize line endings to avoid CRLF vs LF issues
+            originalFileContent = NormalizeLineEndings(originalFileContent);
+            searchBlock = NormalizeLineEndings(searchBlock);
+            replaceBlock = NormalizeLineEndings(replaceBlock);
+
+            // 1. Attempt Exact Match (Fastest)
+            if (originalFileContent.Contains(searchBlock))
+            {
+                var newText = ReplaceFirstOccurrence(originalFileContent, searchBlock, replaceBlock);
+
+                File.WriteAllText(fullPath, newText);
+
+                return newText;
+            }
+
+            // 2. Attempt Whitespace-Insensitive Line Match (Good for indentation errors)
+            var fileLines = SplitLines(originalFileContent);
+            var searchLines = SplitLines(searchBlock);
+            var replaceLines = SplitLines(replaceBlock);
+
+            // Remove empty leading/trailing lines from search block (common LLM artifact)
+            searchLines = TrimEmptyEnds(searchLines);
+
+            int matchIndex = FindBlockIndex(fileLines, searchLines, fuzzyThreshold: 1.0); // 1.0 = strict text, loose whitespace
+
+            // 3. Attempt Levenshtein Fuzzy Match (Good for typos/hallucinated comments)
+            if (matchIndex == -1)
+            {
+                // Threshold 0.85 means 85% similarity required
+                matchIndex = FindBlockIndex(fileLines, searchLines, fuzzyThreshold: 0.85);
+            }
+
+            if (matchIndex != -1)
+            {
+                var newText = ApplyLineReplacement(fileLines, searchLines, replaceLines, matchIndex);
+
+                File.WriteAllText(fullPath, newText);
+
+                return newText;
+            }
+
+            return "ERROR: Could not locate the SEARCH block in the file. Please ensure the SEARCH block matches the file content exactly.";
         }
         catch (Exception ex)
         {
-            return $"Error: {ex.Message}";
+            return $"ERROR: Failed to apply edit. {ex.Message}";
         }
+    }
+
+    // --- Helper Logic ---
+
+    private int FindBlockIndex(List<string> fileLines, List<string> searchLines, double fuzzyThreshold)
+    {
+        if (searchLines.Count == 0) return -1;
+
+        // Iterate through the file looking for the sequence
+        for (int i = 0; i <= fileLines.Count - searchLines.Count; i++)
+        {
+            bool match = true;
+            double totalScore = 0;
+
+            for (int j = 0; j < searchLines.Count; j++)
+            {
+                string fileLine = fileLines[i + j].Trim();
+                string searchLine = searchLines[j].Trim();
+
+                // Skip comparison if both lines are empty (allows flexible blank line matching)
+                if (string.IsNullOrWhiteSpace(fileLine) && string.IsNullOrWhiteSpace(searchLine))
+                {
+                    totalScore += 1.0;
+                    continue;
+                }
+
+                if (fuzzyThreshold >= 1.0)
+                {
+                    // Strict whitespace-normalized equality
+                    if (fileLine != searchLine)
+                    {
+                        match = false;
+                        break;
+                    }
+                    totalScore += 1.0;
+                }
+                else
+                {
+                    // Levenshtein similarity
+                    double score = CalculateSimilarity(fileLine, searchLine);
+                    if (score < 0.6) // Hard cutoff for very different lines
+                    {
+                        match = false;
+                        break;
+                    }
+                    totalScore += score;
+                }
+            }
+
+            if (match)
+            {
+                double avgScore = totalScore / searchLines.Count;
+                if (avgScore >= fuzzyThreshold) return i;
+            }
+        }
+        return -1;
+    }
+
+    private string ApplyLineReplacement(List<string> fileLines, List<string> searchLines, List<string> replaceLines, int startIndex)
+    {
+        // Remove the old lines
+        fileLines.RemoveRange(startIndex, searchLines.Count);
+        // Insert the new lines
+        fileLines.InsertRange(startIndex, replaceLines);
+        return string.Join("\n", fileLines);
+    }
+
+    // --- Utility Functions ---
+
+    private string ReplaceFirstOccurrence(string source, string search, string replace)
+    {
+        int index = source.IndexOf(search);
+        if (index < 0) return source;
+        return source.Remove(index, search.Length).Insert(index, replace);
+    }
+
+    private string NormalizeLineEndings(string text)
+    {
+        return text.Replace("\r\n", "\n").Replace("\r", "\n");
+    }
+
+    private List<string> SplitLines(string text)
+    {
+        return text.Split('\n').ToList();
+    }
+
+    private List<string> TrimEmptyEnds(List<string> lines)
+    {
+        var result = new List<string>(lines);
+        while (result.Count > 0 && string.IsNullOrWhiteSpace(result[0])) result.RemoveAt(0);
+        while (result.Count > 0 && string.IsNullOrWhiteSpace(result[result.Count - 1])) result.RemoveAt(result.Count - 1);
+        return result;
+    }
+
+    // --- Levenshtein Implementation (Standard 0-1 Similarity) ---
+    private static double CalculateSimilarity(string s1, string s2)
+    {
+        if (s1 == s2) return 1.0;
+        if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2)) return 0.0;
+
+        int distance = ComputeLevenshteinDistance(s1, s2);
+        return 1.0 - (double)distance / Math.Max(s1.Length, s2.Length);
+    }
+
+    private static int ComputeLevenshteinDistance(string s, string t)
+    {
+        int n = s.Length;
+        int m = t.Length;
+        int[,] d = new int[n + 1, m + 1];
+
+        if (n == 0) return m;
+        if (m == 0) return n;
+
+        for (int i = 0; i <= n; d[i, 0] = i++) { }
+        for (int j = 0; j <= m; d[0, j] = j++) { }
+
+        for (int i = 1; i <= n; i++)
+        {
+            for (int j = 1; j <= m; j++)
+            {
+                int cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
+                d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+            }
+        }
+        return d[n, m];
     }
 }

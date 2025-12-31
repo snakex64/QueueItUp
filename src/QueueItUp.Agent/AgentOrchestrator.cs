@@ -24,7 +24,7 @@ public class AgentOrchestrator : AgentBase, ITaskExecutable
 
         AddPlugin(_agentSelectionPlugin, "AgentSelection");
 
-        AddSystemMessage(@"You are an orchestrator agent. Your job is to:
+        AddSystemMessage(@$"You are an orchestrator agent. Your job is to:
 1. Analyze the user's request/instruction
 2. Call the SelectAgent plugin function to select which specialized agent should handle this task and provide a description for the agent.
    - CodingAgent: For tasks that involve writing, modifying, or fixing code
@@ -32,6 +32,7 @@ public class AgentOrchestrator : AgentBase, ITaskExecutable
 3. Do not try to do the task yourself, ALWAYS delegate. Never code anything yourself
 4. When calling a plugin, talk in the future. The plugin will only be called after. i.e. do not say 'file was updated' at the same time as trying to update it, wait to get a response back from the plugin
 
+Agents are working in the following folder: {basePath}
 Once you have selected an agent, the software will queue up the appropriate agent task, only ever call that tool once. Stop working once the SelectAgent function has been called.
 ");
     }

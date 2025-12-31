@@ -48,7 +48,7 @@ services.AddSingleton<IChatCompletionService>(serviceProvider =>
 services.AddScoped<Kernel>(sp =>
 {
     var plugins = new KernelPluginCollection();
-    plugins.AddFromFunctions("mcp", functions);
+    //plugins.AddFromFunctions("mcp", functions);
 
     var kernel = new Kernel(sp, plugins);
 
@@ -67,7 +67,7 @@ var basePath = @"C:\Users\pasc3\source\repos\QueueItUp";
 
 // Create an AgentOrchestrator task with the desired instruction
 var orchestratorTask = new AgentOrchestrator(
-    "Use the coding agent to modify the file system plugin to allow deleting files and creating new files. Directly update the FileSystemPlugin.cs file",
+    "Use the coding agent to modify the file system plugin to allow deleting files. Directly update the FileSystemPlugin.cs file",
     kernel: kernel,
     basePath: basePath
 );
