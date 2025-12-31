@@ -80,6 +80,27 @@ public abstract class AgentBase : TaskBase<string, string>
             cancellationToken: cancellationToken);
 
         var responseText = result.Content ?? string.Empty;
+        
+        // Add the assistant's message to chat history (including thinking and tool calls)
+        ChatHistory.Add(result);
+        
+        // Log the assistant's thinking/reasoning before function calls
+        if (!string.IsNullOrWhiteSpace(responseText))
+        {
+            Console.WriteLine($"[Assistant]: {responseText}");
+        }
+        
+        // Log any tool calls that were made
+        var toolCalls = result.Items.OfType<Microsoft.SemanticKernel.FunctionCallContent>();
+        foreach (var toolCall in toolCalls)
+        {
+            Console.WriteLine($"[Tool Call]: {toolCall.PluginName}.{toolCall.FunctionName}");
+            if (toolCall.Arguments != null)
+            {
+                Console.WriteLine($"[Tool Arguments]: {string.Join(", ", toolCall.Arguments.Select(a => $"{a.Key}={a.Value}"))}");
+            }
+        }
+        
         return responseText;
     }
 }
