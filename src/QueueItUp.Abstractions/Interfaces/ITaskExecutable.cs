@@ -11,4 +11,9 @@ public interface ITaskExecutable : ITask
     /// Returns a Task that can be awaited even though we don't know the generic result type.
     /// </summary>
     Task ExecuteAsync(ITaskExecutionContext context, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a string representation of the output/result of the task.
+    /// </summary>
+    string StringOutput { get; }
 }
